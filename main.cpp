@@ -52,9 +52,6 @@ constexpr wchar_t SZDLG_CLASS[]  = L"BOSzDlg";
 constexpr UINT WM_IME_CTRL     = 0x0283;
 constexpr UINT IMC_GETOPENSTATUS = 0x0005;
 
-// EM_SETSEL
-constexpr UINT EM_SETSEL = 0x00B1;
-
 // ══════════════════════════════════════════════
 // 配置结构体
 struct Config {
@@ -788,8 +785,12 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 cw = AppState::cfg.w;
                 ch = AppState::cfg.h;
             }
-            int nx = std::clamp(rc.left + mx - ox, -cw + 10, int(sw - 10));
-            int ny = std::clamp(rc.top + my - oy, -ch + 10, int(sh - 10));
+            int raw_nx = rc.left + mx - ox;
+            int raw_ny = rc.top + my - oy;
+            int lo_x = -cw + 10, hi_x = sw - 10;
+            int lo_y = -ch + 10, hi_y = sh - 10;
+            int nx = raw_nx < lo_x ? lo_x : (raw_nx > hi_x ? hi_x : raw_nx);
+            int ny = raw_ny < lo_y ? lo_y : (raw_ny > hi_y ? hi_y : raw_ny);
             SetWindowPos(hwnd, HWND_TOPMOST, nx, ny, 0, 0,
                 SWP_NOSIZE | SWP_NOACTIVATE);
             render(hwnd);
