@@ -75,8 +75,8 @@ struct Config {
     }
 
     int fontSize() const {
-        // 每行文字高度约为窗口高度的 45%，两行总共 90%，留 10% 作为行间距/边距
-        return std::max(static_cast<int>(h * 0.45f), 8);
+        // 文字尽可能大：每行高度约为窗口高度的一半，留 1px 边距
+        return std::max(h / 2 - 1, 8);
     }
 };
 
