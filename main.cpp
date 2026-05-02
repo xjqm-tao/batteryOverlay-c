@@ -75,8 +75,8 @@ struct Config {
     }
 
     int fontSize() const {
-        // 文字尽可能大：每行高度约为窗口高度的一半，留 1px 边距
-        return std::max(h / 2 - 1, 8);
+        // 文字最大化：字体高度直接等于窗口高度的一半（16px on 32px window）
+        return std::max(h / 2, 8);
     }
 };
 
