@@ -187,13 +187,16 @@ static void saveConfig() {
 // ═══════════════════
 // 输入法检测（跨进程方案）
 // 预期逻辑：
-//   Caps Lock 开 → "ENG"   （独立于前台窗口，系统级状态）
-//   Caps Lock 关 + 英文输入 → "eng"
-//   Caps Lock 关 + 中文输入 → "中"
+//   Caps Lock 切换到开 → "EN"
+//   Caps Lock 切换到关 + 英文输入 → "en"
+//   Caps Lock 切换到关 + 中文输入 → "中"
 static std::wstring getInputLang() {
-    // Caps Lock 是系统级状态，先检测，不依赖前台窗口
-    bool caps = (GetKeyState(VK_CAPITAL) & 0x8000) != 0;
-    if (caps) return L"ENG";
+    // GetKeyState(VK_CAPITAL) 返回值：
+    //   bit0 (0x0001) = toggle 状态：1=CapsLock开, 0=CapsLock关
+    //   bit15 (0x8000) = 按键当前是否按下（仅在按键按下瞬间为1）
+    // 用 bit0 检测 CapsLock 切换状态，不用 bit15（否则松键后就丢了状态）
+    bool capsOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
+    if (capsOn) return L"EN";
 
     // 获取当前输入法线程的键盘布局（稳定，不受前台窗口闪烁影响）
     HKL hkl = GetKeyboardLayout(0);
@@ -202,7 +205,7 @@ static std::wstring getInputLang() {
     // 非 CJK 键盘：英文输入
     if (lid != 0x0804 && lid != 0x0404 && lid != 0x1004 && lid != 0x0C04
         && lid != 0x0411 && lid != 0x0412) {
-        return L"eng";
+        return L"en";
     }
 
     // 尝试获取前台窗口 IME
@@ -214,7 +217,7 @@ static std::wstring getInputLang() {
             bool cn = (r & 0x001) != 0;
             if (lid == 0x0411) return cn ? L"\u3042" : L"\u30a2";
             if (lid == 0x0412) return cn ? L"\ud55c" : L"\uac00";
-            return cn ? L"\u4e2d" : L"eng";
+            return cn ? L"\u4e2d" : L"en";
         }
     }
 
@@ -238,7 +241,7 @@ static std::wstring getInputLang() {
 
     if (lid == 0x0411) return hasIME ? L"\u3042" : L"\u30a2";
     if (lid == 0x0412) return hasIME ? L"\ud55c" : L"\uac00";
-    return hasIME ? L"\u4e2d" : L"eng";
+    return hasIME ? L"\u4e2d" : L"en";
 }
 
 // ══════════════════════════════
@@ -350,13 +353,13 @@ static void render(HWND hwnd) {
     std::wstring lang = getInputLang();
     std::wstring display = charging ? lang + L"\u26A1" : lang; // ⚡
     int mid = h / 2;
-    RECT r1 = { 1, -2, w - 1, mid + 1 };
+    RECT r1 = { 1, 0, w - 1, mid };
     DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
     // 第二行：电池百分比
     std::wstring txt = std::to_wstring(sps.BatteryLifePercent) + L"%";
-    RECT r2 = { 1, mid - 1, w - 1, h + 2 };
+    RECT r2 = { 1, mid, w - 1, h };
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
