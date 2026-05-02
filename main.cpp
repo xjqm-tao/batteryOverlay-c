@@ -853,8 +853,8 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             // 当前鼠标屏幕坐标（用 GetMessagePos 比 GetCursorPos 更稳定）
             POINT mp = {};
             DWORD pos = GetMessagePos();
-            mp.x = GET_X_LPARAM(pos);
-            mp.y = GET_Y_LPARAM(pos);
+            mp.x = (int)(short)LOWORD(pos);
+            mp.y = (int)(short)HIWORD(pos);
 
             int ix = AppState::cfg.x;
             int iy = AppState::cfg.y;
