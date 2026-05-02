@@ -75,7 +75,8 @@ struct Config {
     }
 
     int fontSize() const {
-        return std::max(h / 2 - 2, 8);
+        // 每行文字高度约为窗口高度的 45%，两行总共 90%，留 10% 作为行间距/边距
+        return std::max(static_cast<int>(h * 0.45f), 8);
     }
 };
 
@@ -349,18 +350,18 @@ static void render(HWND hwnd) {
     GetSystemPowerStatus(&sps);
     bool charging = (sps.ACLineStatus == 1);
 
-    // 第一行：输入法状态 + 充电标识（占上半部分，无空格）
+    // 第一行：输入法状态 + 充电标识（占上半部分）
     std::wstring lang = getInputLang();
     std::wstring display = charging ? lang + L"\u26A1" : lang;
-    RECT r1 = { 1, 0, w - 1, h / 2 + 4 };   // 底部向下延伸4px，与第二行重叠
+    RECT r1 = { 0, 0, w, h / 2 };
     DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
-        DT_CENTER | DT_SINGLELINE);
+        DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
-    // 第二行：电池百分比（顶部向上缩4px，与第一行重叠）
+    // 第二行：电池百分比（占下半部分）
     std::wstring txt = std::to_wstring(sps.BatteryLifePercent) + L"%";
-    RECT r2 = { 1, h / 2 - 4, w - 1, h };
+    RECT r2 = { 0, h / 2, w, h };
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
-        DT_CENTER | DT_SINGLELINE);
+        DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
     SelectObject(hdc, oldFont);
     DeleteObject(font);
@@ -745,7 +746,7 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         AppState::dragging.store(false);
         AppState::dragOffX.store(0);
         AppState::dragOffY.store(0);
-        SetTimer(hwnd, 1, 200, nullptr);
+        SetTimer(hwnd, 1, 100, nullptr);
         render(hwnd);
         return 0;
 
