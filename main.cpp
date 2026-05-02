@@ -185,83 +185,60 @@ static void saveConfig() {
 }
 
 // ═══════════════════
-// 输入法检测
+// 输入法检测（跨进程方案）
 // 预期逻辑：
-//   Caps Lock 开 → "ENG"
+//   Caps Lock 开 → "ENG"   （独立于前台窗口，系统级状态）
 //   Caps Lock 关 + 英文输入 → "eng"
 //   Caps Lock 关 + 中文输入 → "中"
 static std::wstring getInputLang() {
-    HWND fg = GetForegroundWindow();
-    if (!fg) return L"eng";
-    if (fg == AppState::mainHwnd.load()) return L"eng";
-
-    // Caps Lock 状态
+    // Caps Lock 是系统级状态，先检测，不依赖前台窗口
     bool caps = (GetKeyState(VK_CAPITAL) & 0x8000) != 0;
     if (caps) return L"ENG";
 
-    DWORD tid = GetWindowThreadProcessId(fg, nullptr);
-    HKL hkl = GetKeyboardLayout(tid);
+    // 获取当前输入法线程的键盘布局（稳定，不受前台窗口闪烁影响）
+    HKL hkl = GetKeyboardLayout(0);
     LANGID lid = static_cast<LANGID>(reinterpret_cast<UINT_PTR>(hkl) & 0xFFFF);
 
-    // 非 CJK 键盘：直接返回 eng
+    // 非 CJK 键盘：英文输入
     if (lid != 0x0804 && lid != 0x0404 && lid != 0x1004 && lid != 0x0C04
         && lid != 0x0411 && lid != 0x0412) {
         return L"eng";
     }
 
-    // 尝试获取 IME 窗口
-    HWND ime = ImmGetDefaultIMEWnd(fg);
-
-    // 对于日文(0x0411)和韩文(0x0412)，IME 模式通常可以正确检测
-    if (lid == 0x0411) {
+    // 尝试获取前台窗口 IME
+    HWND fg = GetForegroundWindow();
+    if (fg && fg != AppState::mainHwnd.load()) {
+        HWND ime = ImmGetDefaultIMEWnd(fg);
         if (ime) {
             LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
-            if ((r & 0x001) != 0) return L"\u3042"; // あ
-        }
-        return L"\u30a2"; // ア (片假名默认)
-    }
-    if (lid == 0x0412) {
-        if (ime) {
-            LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
-            if ((r & 0x001) != 0) return L"\ud55c"; // 한
-        }
-        return L"\uac00"; // 가 (韩文默认)
-    }
-
-    // 中文 IME (0x0804 等)：核心问题在于 ImmGetDefaultIMEWnd 跨进程经常失效
-    // 策略：优先尝试通过 ImmGetCompositionStringW 检测当前是否有中文composition
-    //       若失败，再用 ImmIsUIMessage + keyboard layout 组合判断
-    bool inCnMode = false;
-
-    if (ime) {
-        // IMC_GETCONVERSIONMODE：bit0=1 表示当前为本地语言输入模式
-        LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
-        inCnMode = (r & 0x001) != 0;
-    }
-
-    // ime 为 null 时的降级策略：检查键盘布局列表中是否有中文 IME
-    // 同时用 ImmIsUIMessage 检查前台窗口是否在处理 IME 消息
-    if (!ime) {
-        // 检查系统是否注册了中文 IME
-        HKL hklList[16];
-        int n = GetKeyboardLayoutList(16, hklList);
-        inCnMode = false;
-        for (int i = 0; i < n; i++) {
-            LANGID tl = static_cast<LANGID>(
-                reinterpret_cast<UINT_PTR>(hklList[i]) & 0xFFFF);
-            if (tl == 0x0804 || tl == 0x0404 || tl == 0x1004 || tl == 0x0C04) {
-                inCnMode = true;
-                break;
-            }
-        }
-        // 备选：如果键盘布局本身就是中文 layout，假设中文模式
-        if (!inCnMode && (lid == 0x0804 || lid == 0x0404 ||
-                          lid == 0x1004 || lid == 0x0C04)) {
-            inCnMode = true;
+            bool cn = (r & 0x001) != 0;
+            if (lid == 0x0411) return cn ? L"\u3042" : L"\u30a2";
+            if (lid == 0x0412) return cn ? L"\ud55c" : L"\uac00";
+            return cn ? L"\u4e2d" : L"eng";
         }
     }
 
-    return inCnMode ? L"\u4e2d" : L"eng"; // "中" : "eng"
+    // ime 为 null 或 fg 无效：枚举键盘布局列表判断
+    HKL hklList[16];
+    int n = GetKeyboardLayoutList(16, hklList);
+    bool hasIME = false;
+    for (int i = 0; i < n; i++) {
+        LANGID tl = static_cast<LANGID>(
+            reinterpret_cast<UINT_PTR>(hklList[i]) & 0xFFFF);
+        if (tl == 0x0804 || tl == 0x0404 || tl == 0x1004 || tl == 0x0C04) {
+            hasIME = true;
+            break;
+        }
+    }
+    // 备选：键盘布局本身是中文
+    if (!hasIME && (lid == 0x0804 || lid == 0x0404 ||
+                    lid == 0x1004 || lid == 0x0C04)) {
+        hasIME = true;
+    }
+
+    if (lid == 0x0411) return hasIME ? L"\u3042" : L"\u30a2";
+    if (lid == 0x0412) return hasIME ? L"\ud55c" : L"\uac00";
+    return hasIME ? L"\u4e2d" : L"eng";
 }
 
 // ══════════════════════════════
@@ -766,7 +743,7 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         AppState::dragging.store(false);
         AppState::dragOffX.store(0);
         AppState::dragOffY.store(0);
-        SetTimer(hwnd, 1, 1000, nullptr);
+        SetTimer(hwnd, 1, 200, nullptr);
         render(hwnd);
         return 0;
 
