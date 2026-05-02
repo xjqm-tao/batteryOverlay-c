@@ -75,7 +75,7 @@ struct Config {
     }
 
     int fontSize() const {
-        return std::max(h / 2, 8);
+        return std::max(h / 2 - 2, 8);
     }
 };
 
@@ -352,13 +352,13 @@ static void render(HWND hwnd) {
     // 第一行：输入法状态 + 充电标识（占上半部分，无空格）
     std::wstring lang = getInputLang();
     std::wstring display = charging ? lang + L"\u26A1" : lang;
-    RECT r1 = { 1, 0, w - 1, h / 2 };
+    RECT r1 = { 1, 0, w - 1, h / 2 + 4 };   // 底部向下延伸4px，与第二行重叠
     DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
         DT_CENTER | DT_SINGLELINE);
 
-    // 第二行：电池百分比（占下半部分）
+    // 第二行：电池百分比（顶部向上缩4px，与第一行重叠）
     std::wstring txt = std::to_wstring(sps.BatteryLifePercent) + L"%";
-    RECT r2 = { 1, h / 2, w - 1, h };
+    RECT r2 = { 1, h / 2 - 4, w - 1, h };
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
         DT_CENTER | DT_SINGLELINE);
 
