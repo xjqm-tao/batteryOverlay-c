@@ -1,6 +1,6 @@
 /**
  * battery_overlay - C++ 重写版
- * 原作：林涛 -920250443
+ * 作者：林涛 -920250443
  * 功能：桌面悬浮窗，显示电池百分比 + 输入法状态
  */
 
@@ -185,67 +185,83 @@ static void saveConfig() {
 }
 
 // ═══════════════════
-// 输入法检测（跨进程方案）
-// 返回格式：大小写 + 中/英语状态，如 "英eng"、"中ENG"
+// 输入法检测
+// 预期逻辑：
+//   Caps Lock 开 → "ENG"
+//   Caps Lock 关 + 英文输入 → "eng"
+//   Caps Lock 关 + 中文输入 → "中"
 static std::wstring getInputLang() {
     HWND fg = GetForegroundWindow();
     if (!fg) return L"eng";
-    // 跳过悬浮窗自身
     if (fg == AppState::mainHwnd.load()) return L"eng";
+
+    // Caps Lock 状态
+    bool caps = (GetKeyState(VK_CAPITAL) & 0x8000) != 0;
+    if (caps) return L"ENG";
 
     DWORD tid = GetWindowThreadProcessId(fg, nullptr);
     HKL hkl = GetKeyboardLayout(tid);
     LANGID lid = static_cast<LANGID>(reinterpret_cast<UINT_PTR>(hkl) & 0xFFFF);
 
-    // 大小写状态（独立检测）
-    bool caps = (GetKeyState(VK_CAPITAL) & 0x8000) != 0;
-    // 优先取 IME 进程内的输入法窗口，不用跨进程
+    // 非 CJK 键盘：直接返回 eng
+    if (lid != 0x0804 && lid != 0x0404 && lid != 0x1004 && lid != 0x0C04
+        && lid != 0x0411 && lid != 0x0412) {
+        return L"eng";
+    }
+
+    // 尝试获取 IME 窗口
     HWND ime = ImmGetDefaultIMEWnd(fg);
 
-    // 中文系 IME：通过 IMC_GETCONVERSIONMODE 判断中/英状态
-    if (lid == 0x0804 || lid == 0x0404 || lid == 0x1004 || lid == 0x0C04) {
-        bool cn = false;
-        if (ime) {
-            // IMC_GETCONVERSIONMODE：bit0 (0x001) = Chinese mode，0 = English mode
-            LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
-            cn = (r & 0x001) != 0;
-        }
-        // 有时候 IME 窗口句柄跨进程为 null，仍尝试
-        if (!ime) cn = true; // 保守假设中文
-        return caps ? (cn ? L"\u4e2dENG" : L"\u82f1ENG")
-                    : (cn ? L"\u4e2deng" : L"\u82f1eng");
-    }
-
-    // 日语 IME
+    // 对于日文(0x0411)和韩文(0x0412)，IME 模式通常可以正确检测
     if (lid == 0x0411) {
-        bool jp = false;
         if (ime) {
             LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
-            jp = (r & 0x001) != 0;
+            if ((r & 0x001) != 0) return L"\u3042"; // あ
         }
-        return caps ? (jp ? L"\u3042ENG" : L"\u30a2ENG")
-                    : (jp ? L"\u3042eng" : L"\u30a2eng");
+        return L"\u30a2"; // ア (片假名默认)
     }
-
-    // 韩语
     if (lid == 0x0412) {
-        bool kr = false;
         if (ime) {
             LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
-            kr = (r & 0x001) != 0;
+            if ((r & 0x001) != 0) return L"\ud55c"; // 한
         }
-        return caps ? (kr ? L"\ud55cENG" : L"\uac00ENG")
-                    : (kr ? L"\ud55ceng" : L"\uac00eng");
+        return L"\uac00"; // 가 (韩文默认)
     }
 
-    // 英语系键盘：直接用 caps 状态
-    const wchar_t* eng = caps ? L"ENG" : L"eng";
-    switch (lid) {
-        case 0x0409: case 0x0809: case 0x0c09: case 0x1009:
-            return eng;
-        default:
-            return eng;
+    // 中文 IME (0x0804 等)：核心问题在于 ImmGetDefaultIMEWnd 跨进程经常失效
+    // 策略：优先尝试通过 ImmGetCompositionStringW 检测当前是否有中文composition
+    //       若失败，再用 ImmIsUIMessage + keyboard layout 组合判断
+    bool inCnMode = false;
+
+    if (ime) {
+        // IMC_GETCONVERSIONMODE：bit0=1 表示当前为本地语言输入模式
+        LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
+        inCnMode = (r & 0x001) != 0;
     }
+
+    // ime 为 null 时的降级策略：检查键盘布局列表中是否有中文 IME
+    // 同时用 ImmIsUIMessage 检查前台窗口是否在处理 IME 消息
+    if (!ime) {
+        // 检查系统是否注册了中文 IME
+        HKL hklList[16];
+        int n = GetKeyboardLayoutList(16, hklList);
+        inCnMode = false;
+        for (int i = 0; i < n; i++) {
+            LANGID tl = static_cast<LANGID>(
+                reinterpret_cast<UINT_PTR>(hklList[i]) & 0xFFFF);
+            if (tl == 0x0804 || tl == 0x0404 || tl == 0x1004 || tl == 0x0C04) {
+                inCnMode = true;
+                break;
+            }
+        }
+        // 备选：如果键盘布局本身就是中文 layout，假设中文模式
+        if (!inCnMode && (lid == 0x0804 || lid == 0x0404 ||
+                          lid == 0x1004 || lid == 0x0C04)) {
+            inCnMode = true;
+        }
+    }
+
+    return inCnMode ? L"\u4e2d" : L"eng"; // "中" : "eng"
 }
 
 // ══════════════════════════════
@@ -443,8 +459,8 @@ static void setAlpha(HWND hwnd, BYTE a) {
 
 static void showAbout(HWND hwnd) {
     int r = MessageBoxW(hwnd,
-        L"电池悬浮窗 v2.0 (C++ 重写版)\n"
-        L"原作：林涛-920250443\n\n"
+        L"电池悬浮窗 v2.0.1.0 (C++ 重写版)\n"
+        L"作者：林涛-920250443\n\n"
         L"右键菜单可自定义：\n"
         L"  \xB7 窗口大小（手动输入长宽）\n"
         L"  \xB7 字体颜色（手动输入 RGB）\n"
@@ -772,13 +788,21 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return DefWindowProcW(hwnd, msg, wp, lp);
 
     // ── 拖动逻辑 ──
+    // 拖动状态：点击时记录"窗口初始位置"和"鼠标初始位置"，拖动中用差值计算新位置
     case WM_LBUTTONDOWN: {
-        // 存储屏幕坐标（用于和 GetCursorPos 对齐）
-        POINT pt;
+        // 记录点击瞬间的鼠标屏幕坐标
+        POINT pt = {};
         GetCursorPos(&pt);
-        AppState::dragging.store(true);
         AppState::dragOffX.store(pt.x);
         AppState::dragOffY.store(pt.y);
+        // 记录窗口初始位置（后面 WM_MOUSEMOVE 里用）
+        RECT rc = {};
+        GetWindowRect(hwnd, &rc);
+        AppState::cfgMutex.lock();
+        AppState::cfg.x = rc.left;
+        AppState::cfg.y = rc.top;
+        AppState::cfgMutex.unlock();
+        AppState::dragging.store(true);
         SetCapture(hwnd);
         return 0;
     }
@@ -787,6 +811,14 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         bool wasDrag = AppState::dragging.exchange(false);
         ReleaseCapture();
         if (wasDrag) {
+            // 保存当前位置
+            RECT rc = {};
+            GetWindowRect(hwnd, &rc);
+            AppState::cfgMutex.lock();
+            AppState::cfg.x = rc.left;
+            AppState::cfg.y = rc.top;
+            AppState::cfgMutex.unlock();
+            saveConfig();
             render(hwnd);
             if (AppState::topMost.load()) {
                 SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
@@ -799,6 +831,13 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CAPTURECHANGED: {
         bool wasDrag = AppState::dragging.exchange(false);
         if (wasDrag) {
+            RECT rc = {};
+            GetWindowRect(hwnd, &rc);
+            AppState::cfgMutex.lock();
+            AppState::cfg.x = rc.left;
+            AppState::cfg.y = rc.top;
+            AppState::cfgMutex.unlock();
+            saveConfig();
             render(hwnd);
             if (AppState::topMost.load()) {
                 SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
@@ -811,16 +850,19 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_MOUSEMOVE: {
         if (AppState::dragging.load()) {
-            // 使用屏幕坐标（GetCursorPos），避免客户区/屏幕坐标混用
-            POINT mp;
-            GetCursorPos(&mp);
+            // 当前鼠标屏幕坐标（用 GetMessagePos 比 GetCursorPos 更稳定）
+            POINT mp = {};
+            DWORD pos = GetMessagePos();
+            mp.x = GET_X_LPARAM(pos);
+            mp.y = GET_Y_LPARAM(pos);
+
+            int ix = AppState::cfg.x;
+            int iy = AppState::cfg.y;
             int ox = AppState::dragOffX.load();
             int oy = AppState::dragOffY.load();
 
-            RECT rc = {};
-            GetWindowRect(hwnd, &rc);
-            int raw_nx = rc.left + mp.x - ox;
-            int raw_ny = rc.top + mp.y - oy;
+            int raw_nx = ix + mp.x - ox;
+            int raw_ny = iy + mp.y - oy;
 
             int sw = GetSystemMetrics(SM_CXSCREEN);
             int sh = GetSystemMetrics(SM_CYSCREEN);
