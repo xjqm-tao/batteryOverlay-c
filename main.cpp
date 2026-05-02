@@ -185,6 +185,7 @@ static void saveConfig() {
 
 // ═══════════════════
 // 输入法检测（跨进程方案）
+// 返回格式：大小写 + 中/英语状态，如 "英eng"、"中ENG"
 static std::wstring getInputLang() {
     HWND fg = GetForegroundWindow();
     if (!fg) return L"eng";
@@ -195,24 +196,54 @@ static std::wstring getInputLang() {
     HKL hkl = GetKeyboardLayout(tid);
     LANGID lid = static_cast<LANGID>(reinterpret_cast<UINT_PTR>(hkl) & 0xFFFF);
 
+    // 大小写状态（独立检测）
     bool caps = (GetKeyState(VK_CAPITAL) & 0x8000) != 0;
-    const wchar_t* engStr = caps ? L"ENG" : L"eng";
+    // 优先取 IME 进程内的输入法窗口，不用跨进程
+    HWND ime = ImmGetDefaultIMEWnd(fg);
 
-    // 中文输入法：通过 ImmGetDefaultIMEWnd 跨进程检测
+    // 中文系 IME：通过 IMC_GETCONVERSIONMODE 判断中/英状态
     if (lid == 0x0804 || lid == 0x0404 || lid == 0x1004 || lid == 0x0C04) {
-        HWND ime = ImmGetDefaultIMEWnd(fg);
+        bool cn = false;
         if (ime) {
-            LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETOPENSTATUS, 0);
-            if (r != 0) return L"\u4e2d"; // "中"
+            // IMC_GETCONVERSIONMODE：bit0 (0x001) = Chinese mode，0 = English mode
+            LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
+            cn = (r & 0x001) != 0;
         }
-        return L"\u4e2d"; // 回退假设中文
+        // 有时候 IME 窗口句柄跨进程为 null，仍尝试
+        if (!ime) cn = true; // 保守假设中文
+        return caps ? (cn ? L"\u4e2dENG" : L"\u82f1ENG")
+                    : (cn ? L"\u4e2deng" : L"\u82f1eng");
     }
 
+    // 日语 IME
+    if (lid == 0x0411) {
+        bool jp = false;
+        if (ime) {
+            LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
+            jp = (r & 0x001) != 0;
+        }
+        return caps ? (jp ? L"\u3042ENG" : L"\u30a2ENG")
+                    : (jp ? L"\u3042eng" : L"\u30a2eng");
+    }
+
+    // 韩语
+    if (lid == 0x0412) {
+        bool kr = false;
+        if (ime) {
+            LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
+            kr = (r & 0x001) != 0;
+        }
+        return caps ? (kr ? L"\ud55cENG" : L"\uac00ENG")
+                    : (kr ? L"\ud55ceng" : L"\uac00eng");
+    }
+
+    // 英语系键盘：直接用 caps 状态
+    const wchar_t* eng = caps ? L"ENG" : L"eng";
     switch (lid) {
-        case 0x0411: return L"\u3042"; // "あ"
-        case 0x0412: return L"\ud55c"; // "한"
-        case 0x0409: case 0x0809: return engStr;
-        default: return engStr;
+        case 0x0409: case 0x0809: case 0x0c09: case 0x1009:
+            return eng;
+        default:
+            return eng;
     }
 }
 
@@ -741,11 +772,12 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     // ── 拖动逻辑 ──
     case WM_LBUTTONDOWN: {
-        int mx = LOWORD(lp);
-        int my = HIWORD(lp);
+        // 存储屏幕坐标（用于和 GetCursorPos 对齐）
+        POINT pt;
+        GetCursorPos(&pt);
         AppState::dragging.store(true);
-        AppState::dragOffX.store(mx);
-        AppState::dragOffY.store(my);
+        AppState::dragOffX.store(pt.x);
+        AppState::dragOffY.store(pt.y);
         SetCapture(hwnd);
         return 0;
     }
@@ -778,13 +810,17 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_MOUSEMOVE: {
         if (AppState::dragging.load()) {
-            int mx = LOWORD(lp);
-            int my = HIWORD(lp);
+            // 使用屏幕坐标（GetCursorPos），避免客户区/屏幕坐标混用
+            POINT mp;
+            GetCursorPos(&mp);
             int ox = AppState::dragOffX.load();
             int oy = AppState::dragOffY.load();
 
             RECT rc = {};
             GetWindowRect(hwnd, &rc);
+            int raw_nx = rc.left + mp.x - ox;
+            int raw_ny = rc.top + mp.y - oy;
+
             int sw = GetSystemMetrics(SM_CXSCREEN);
             int sh = GetSystemMetrics(SM_CYSCREEN);
             int cw, ch;
@@ -793,8 +829,6 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 cw = AppState::cfg.w;
                 ch = AppState::cfg.h;
             }
-            int raw_nx = rc.left + mx - ox;
-            int raw_ny = rc.top + my - oy;
             int lo_x = -cw + 10, hi_x = sw - 10;
             int lo_y = -ch + 10, hi_y = sh - 10;
             int nx = raw_nx < lo_x ? lo_x : (raw_nx > hi_x ? hi_x : raw_nx);
