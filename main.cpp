@@ -1,6 +1,6 @@
 /**
  * battery_overlay - C++ 重写版
- * 原作：林涛
+ * 原作：林涛 -920250443
  * 功能：桌面悬浮窗，显示电池百分比 + 输入法状态
  */
 
@@ -50,7 +50,8 @@ constexpr wchar_t SZDLG_CLASS[]  = L"BOSzDlg";
 
 // IME 控制常量
 constexpr UINT WM_IME_CTRL     = 0x0283;
-constexpr UINT IMC_GETOPENSTATUS = 0x0005;
+constexpr UINT IMC_GETOPENSTATUS  = 0x0005;
+constexpr UINT IMC_GETCONVERSIONMODE = 0x001;
 
 // ══════════════
 // 配置结构体
@@ -442,8 +443,8 @@ static void setAlpha(HWND hwnd, BYTE a) {
 
 static void showAbout(HWND hwnd) {
     int r = MessageBoxW(hwnd,
-        L"电池悬浮窗 v0.6 (C++ 重写版)\n"
-        L"原作：林涛\n\n"
+        L"电池悬浮窗 v2.0 (C++ 重写版)\n"
+        L"原作：林涛-920250443\n\n"
         L"右键菜单可自定义：\n"
         L"  \xB7 窗口大小（手动输入长宽）\n"
         L"  \xB7 字体颜色（手动输入 RGB）\n"
