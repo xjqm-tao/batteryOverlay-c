@@ -10,6 +10,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <imm.h>
 #include <shellapi.h>
@@ -785,8 +788,8 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 cw = AppState::cfg.w;
                 ch = AppState::cfg.h;
             }
-            int nx = std::clamp(rc.left + mx - ox, -cw + 10, sw - 10);
-            int ny = std::clamp(rc.top + my - oy, -ch + 10, sh - 10);
+            int nx = std::clamp(rc.left + mx - ox, -cw + 10, int(sw - 10));
+            int ny = std::clamp(rc.top + my - oy, -ch + 10, int(sh - 10));
             SetWindowPos(hwnd, HWND_TOPMOST, nx, ny, 0, 0,
                 SWP_NOSIZE | SWP_NOACTIVATE);
             render(hwnd);
