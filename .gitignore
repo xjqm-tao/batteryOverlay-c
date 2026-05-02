@@ -1,0 +1,10 @@
+build/
+out/
+cmake-build-*/
+.vs/
+*.obj
+*.pdb
+*.ilk
+*.lib
+*.exp
+*.exe

@@ -1,0 +1,6 @@
+#include "resource.h"
+
+IDI_ICON ICON "icon.ico"
+
+// embed manifest
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "app.manifest"
