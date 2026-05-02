@@ -14,11 +14,6 @@ add_executable(battery_overlay WIN32
 
 target_include_directories(battery_overlay PRIVATE ${CMAKE_SOURCE_DIR}/res)
 
-# RC compiler needs the source root to find icon.ico
-set_source_files_properties(res/app.rc PROPERTIES
-    RC_INCLUDES "${CMAKE_SOURCE_DIR}"
-)
-
 target_link_libraries(battery_overlay PRIVATE
     imm32.lib
     shell32.lib
