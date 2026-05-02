@@ -62,8 +62,8 @@ struct Config {
 
     static Config defaults() {
         return { -1, -1, 32, 32,
-                 20, 202, 126,  // 翠绿色字体
-                 50, 50, 50, 195 }; // 灰色背景 + 透明度
+                 90, 202, 106,  // 默认字体颜色
+                 80, 60, 50, 210 }; // 默认背景色 + 透明度
     }
 
     COLORREF fontColorRef() const {
@@ -349,17 +349,19 @@ static void render(HWND hwnd) {
     GetSystemPowerStatus(&sps);
     bool charging = (sps.ACLineStatus == 1);
 
-    // 第一行：输入法状态 + 充电标识
+    // 第一行：输入法状态 + 充电标识（占上半部分，无空格）
     std::wstring lang = getInputLang();
-    std::wstring display = charging ? lang + L"\u26A1" : lang; // ⚡
-    int mid = h / 2;
-    RECT r1 = { 1, 0, w - 1, mid };
+    std::wstring display = charging ? lang + L"\u26A1" : lang;
+    RECT r1 = { 1, 0, w - 1, h / 2 };
     DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        DT_CENTER | DT_SINGLELINE);
 
-    // 第二行：电池百分比
+    // 第二行：电池百分比（占下半部分）
     std::wstring txt = std::to_wstring(sps.BatteryLifePercent) + L"%";
-    RECT r2 = { 1, mid, w - 1, h };
+    RECT r2 = { 1, h / 2, w - 1, h };
+    DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
+        DT_CENTER | DT_SINGLELINE);
+        DT_CENTER | DT_SINGLELINE);
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
