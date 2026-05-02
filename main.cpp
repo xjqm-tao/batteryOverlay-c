@@ -361,9 +361,6 @@ static void render(HWND hwnd) {
     RECT r2 = { 1, h / 2, w - 1, h };
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
         DT_CENTER | DT_SINGLELINE);
-        DT_CENTER | DT_SINGLELINE);
-    DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
     SelectObject(hdc, oldFont);
     DeleteObject(font);
