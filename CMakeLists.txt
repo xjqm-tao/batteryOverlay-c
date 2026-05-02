@@ -12,6 +12,9 @@ add_executable(battery_overlay WIN32
     res/app.rc
 )
 
+# /utf-8: source and execution charset = UTF-8 (fixes Chinese string literals)
+target_compile_options(battery_overlay PRIVATE /utf-8)
+
 target_include_directories(battery_overlay PRIVATE ${CMAKE_SOURCE_DIR}/res)
 
 target_link_libraries(battery_overlay PRIVATE

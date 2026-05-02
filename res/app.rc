@@ -1,6 +1,40 @@
-#include "../res/resource.h"
+#include "resource.h"
 
 IDI_ICON ICON "../icon.ico"
 
 // embed manifest
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "../res/app.manifest"
+
+// version info
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 0,6,0,0
+PRODUCTVERSION 0,6,0,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+FILEFLAGS VS_FF_DEBUG
+#else
+FILEFLAGS 0x0L
+#endif
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404B0"
+        BEGIN
+            VALUE "CompanyName", "xjqm-tao"
+            VALUE "FileDescription", "Battery Overlay"
+            VALUE "FileVersion", "0.6.0.0"
+            VALUE "InternalName", "battery_overlay"
+            VALUE "OriginalFilename", "battery_overlay.exe"
+            VALUE "ProductName", "Battery Overlay"
+            VALUE "ProductVersion", "0.6.0.0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 xjqm-tao"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0804, 1200
+    END
+END

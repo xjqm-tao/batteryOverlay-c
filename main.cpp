@@ -1,6 +1,6 @@
 /**
  * battery_overlay - C++ 重写版
- * 原作：林涛 (Rust 版) https://github.com/xjqm-tao/battery-overlay
+ * 原作：林涛
  * 功能：桌面悬浮窗，显示电池百分比 + 输入法状态
  */
 
@@ -33,7 +33,7 @@
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "comctl32.lib")
 
-// ══════════════════════════════════════════════
+// ══════════════
 // 菜单命令 ID
 constexpr UINT ID_EXIT       = 1001;
 constexpr UINT ID_TOPMOST    = 1002;
@@ -52,7 +52,7 @@ constexpr wchar_t SZDLG_CLASS[]  = L"BOSzDlg";
 constexpr UINT WM_IME_CTRL     = 0x0283;
 constexpr UINT IMC_GETOPENSTATUS = 0x0005;
 
-// ══════════════════════════════════════════════
+// ══════════════
 // 配置结构体
 struct Config {
     int x, y, w, h;
@@ -78,7 +78,7 @@ struct Config {
     }
 };
 
-// ══════════════════════════════════════════════
+// ═════════════
 // 全局状态
 namespace AppState {
     std::atomic<bool>   topMost{true};
@@ -104,7 +104,7 @@ namespace AppState {
     std::optional<std::wstring> szResultH;
 }
 
-// ══════════════════════════════════════════════
+// ═════════════
 // 配置持久化
 static std::wstring configPath() {
     wchar_t buf[MAX_PATH];
@@ -183,7 +183,7 @@ static void saveConfig() {
         << L"}";
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════
 // 输入法检测（跨进程方案）
 static std::wstring getInputLang() {
     HWND fg = GetForegroundWindow();
@@ -216,7 +216,7 @@ static std::wstring getInputLang() {
     }
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════════════════
 // 工具函数
 
 // 解析 "R,G,B" 颜色字符串
@@ -269,7 +269,7 @@ static void selectAll(HWND hedit) {
     SendMessageW(hedit, EM_SETSEL, 0, -1);
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════════════
 // 窗口渲染
 static void render(HWND hwnd) {
     Config c;
@@ -312,7 +312,7 @@ static void render(HWND hwnd) {
     HFONT font = CreateFontW(fsz, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei UI");
-    SelectObject(hdc, font);
+    HFONT oldFont = static_cast<HFONT>(SelectObject(hdc, font));
     SetTextColor(hdc, fc);
     SetBkMode(hdc, TRANSPARENT);
 
@@ -335,6 +335,7 @@ static void render(HWND hwnd) {
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
+    SelectObject(hdc, oldFont);
     DeleteObject(font);
 
     // 设置 Alpha 通道：背景像素半透明，文字/抗锯齿像素完全不透明
@@ -362,7 +363,7 @@ static void render(HWND hwnd) {
     DeleteDC(hdc);
 }
 
-// ══════════════════════════════════════════════
+// ══════════════════
 // 配置修改函数
 static void setSize(HWND hwnd, int w, int h) {
     {
@@ -421,12 +422,12 @@ static void showAbout(HWND hwnd) {
         L"关于 Battery Overlay",
         MB_OKCANCEL | MB_ICONINFORMATION);
     if (r == IDOK) {
-        ShellExecuteW(hwnd, L"open", L"https://github.com/xjqm-tao/battery-overlay",
+        ShellExecuteW(hwnd, L"open", L"https://github.com/xjqm-tao/batteryOverlay-c",
             nullptr, nullptr, SW_SHOWNORMAL);
     }
 }
 
-// ══════════════════════════════════════════════
+// ════════════════
 // 输入对话框（单输入框）
 static LRESULT CALLBACK dlgProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
@@ -550,7 +551,7 @@ static std::optional<std::wstring> inputDialog(HWND parent, const wchar_t* title
     return result;
 }
 
-// ══════════════════════════════════════════════
+// ═══════════════════
 // 大小输入对话框（双输入框：宽度 + 高度）
 static LRESULT CALLBACK sizeDlgProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
@@ -708,7 +709,7 @@ static std::optional<std::pair<int,int>> sizeDialog(HWND parent, int curW, int c
     } catch (...) { return {}; }
 }
 
-// ══════════════════════════════════════════════
+// ═════════════════
 // 主窗口过程
 static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
@@ -720,6 +721,12 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         SetTimer(hwnd, 1, 1000, nullptr);
         render(hwnd);
         return 0;
+
+    case WM_MOUSEACTIVATE:
+        return MA_NOACTIVATE;
+
+    case WM_NCHITTEST:
+        return HTCLIENT;
 
     case WM_TIMER:
         render(hwnd);
@@ -764,6 +771,7 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             }
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         }
         return DefWindowProcW(hwnd, msg, wp, lp);
     }
@@ -977,7 +985,7 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
 }
 
-// ══════════════════════════════════════════════
+// ════════════════
 // 程序入口
 int APIENTRY WinMain(HINSTANCE hinst, HINSTANCE, LPSTR, int) {
     loadConfig();
