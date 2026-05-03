@@ -24,7 +24,7 @@ BEGIN
         BLOCK "080404B0"
         BEGIN
             VALUE "CompanyName", "920250443"
-            VALUE "FileDescription", "显示笔记本电量百分比和输入法状态-920250443"
+            VALUE "FileDescription", "battery_overlay显示笔记本电量百分比和输入法状态"
             VALUE "FileVersion", "2.0.3.0"
             VALUE "InternalName", "battery_overlay"
             VALUE "OriginalFilename", "battery_overlay.exe"
