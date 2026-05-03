@@ -354,10 +354,6 @@ static void render(HWND hwnd) {
     HFONT oldFont = static_cast<HFONT>(SelectObject(hdc, font));
     SetTextColor(hdc, fc);
     SetBkMode(hdc, TRANSPARENT);
-    // 时间模式增加字符间距，避免冒号与数字重叠
-    if (AppState::showTime.load()) {
-        SetTextCharacterExtra(hdc, 1);
-    }
 
     // 获取电池状态
     SYSTEM_POWER_STATUS sps = {};
@@ -372,9 +368,9 @@ static void render(HWND hwnd) {
         wchar_t timeBuf[32];
         wchar_t secBuf[8];
 
-        // 第一行：小时:分钟（稍微左移一点，避免右边被切割）
+        // 第一行：小时:分钟（右边少1像素，避免边缘被切割）
         wsprintfW(timeBuf, L"%02d:%02d", st.wHour, st.wMinute);
-        RECT r1 = { 1, 0, w - 1, h / 2 };
+        RECT r1 = { 0, 0, w - 1, h / 2 };
         DrawTextW(hdc, timeBuf, -1, &r1, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
         // 第二行：秒
