@@ -383,7 +383,7 @@ static void render(HWND hwnd) {
         std::wstring lang = getInputLang();
         bool isDesktop = (sps.BatteryLifePercent == 255);
         std::wstring display = (charging && !isDesktop) ? lang + L"\u26A1" : lang;
-        RECT r1 = { 2, 0, w, h / 2 };
+        RECT r1 = { 3, 0, w, h / 2 };
         DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
             DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
