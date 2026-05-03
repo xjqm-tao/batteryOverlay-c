@@ -372,9 +372,9 @@ static void render(HWND hwnd) {
         wchar_t timeBuf[32];
         wchar_t secBuf[8];
 
-        // 第一行：小时:分钟
+        // 第一行：小时:分钟（稍微左移一点，避免右边被切割）
         wsprintfW(timeBuf, L"%02d:%02d", st.wHour, st.wMinute);
-        RECT r1 = { 0, 0, w, h / 2 };
+        RECT r1 = { 1, 0, w - 1, h / 2 };
         DrawTextW(hdc, timeBuf, -1, &r1, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
         // 第二行：秒
