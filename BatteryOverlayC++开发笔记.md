@@ -153,3 +153,32 @@ mp.y = (int)(short)HIWORD(pos);
 | 拖动时鼠标位置 | `GetMessagePos()` 而非 `GetCursorPos()` |
 | 中文乱码解决 | `/utf-8` 编译选项 + `L"中文字符串"` 前缀 |
 | 窗口不抢焦点 | `WS_EX_NOACTIVATE` + `MA_NOACTIVATE` 返回值 |
+
+---
+
+## 新增功能
+
+### 1. 单击切换显示时间模式
+
+**功能描述：** 单击悬浮窗（不是拖拽）可以在两种显示模式间切换：
+- 正常模式：第一行输入法状态 + 充电标识，第二行电池百分比
+- 时间模式：第一行 `hh:mm`（小时:分钟），第二行实时秒数
+
+**实现原理：**
+- 在 `WM_LBUTTONDOWN` 时记录鼠标起始位置
+- 在 `WM_LBUTTONUP` 时判断鼠标移动距离是否小于 3 像素
+- 移动距离 < 3 像素认为是单击，切换 `showTime` 状态
+- `WM_CAPTURECHANGED` 中也做同样处理（防止窗口外释放鼠标时漏判）
+
+**关键代码：**
+```cpp
+// 判断是否是单击
+int dx = pt.x - AppState::clickStartX.load();
+int dy = pt.y - AppState::clickStartY.load();
+int moveDist = dx * dx + dy * dy;
+bool wasClick = (moveDist < 9);  // 3^2 = 9
+```
+
+**相关状态变量：**
+- `AppState::showTime` - 显示模式切换标志
+- `AppState::clickStartX/clickStartY` - 单击起始位置

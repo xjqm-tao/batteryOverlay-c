@@ -85,8 +85,11 @@ struct Config {
 namespace AppState {
     std::atomic<bool>   topMost{true};
     std::atomic<bool>   dragging{false};
+    std::atomic<bool>   showTime{false};   // true=显示时间模式，false=正常模式
     std::atomic<int>    dragOffX{0};
     std::atomic<int>    dragOffY{0};
+    std::atomic<int>    clickStartX{0};    // 记录单击起始位置，用于判断是否是单击
+    std::atomic<int>    clickStartY{0};
     std::atomic<HWND>   mainHwnd{nullptr};
     std::mutex          cfgMutex;
     Config              cfg = Config::defaults();
@@ -350,22 +353,41 @@ static void render(HWND hwnd) {
     GetSystemPowerStatus(&sps);
     bool charging = (sps.ACLineStatus == 1);
 
-    // 第一行：输入法状态 + 充电标识（占上半部分）
-    // 台式机(BatteryLifePercent==255)时不显示充电⚡
-    std::wstring lang = getInputLang();
-    bool isDesktop = (sps.BatteryLifePercent == 255);
-    std::wstring display = (charging && !isDesktop) ? lang + L"\u26A1" : lang;
-    RECT r1 = { 0, 0, w, h / 2 };
-    DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
-        DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+    // 根据显示模式决定内容
+    if (AppState::showTime.load()) {
+        // 时间模式：第一行 hh:mm，第二行 ss（实时秒数）
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        wchar_t timeBuf[32];
+        wchar_t secBuf[8];
 
-    // 第二行：电池百分比（占下半部分）
-    // 台式机无电池时 BatteryLifePercent=255，此时显示⚡
-    std::wstring txt = isDesktop ? L"\u26A1"
-        : std::to_wstring(sps.BatteryLifePercent) + L"%";
-    RECT r2 = { 0, h / 2, w, h };
-    DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
-        DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+        // 第一行：小时:分钟
+        wsprintfW(timeBuf, L"%02d:%02d", st.wHour, st.wMinute);
+        RECT r1 = { 0, 0, w, h / 2 };
+        DrawTextW(hdc, timeBuf, -1, &r1, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+
+        // 第二行：秒
+        wsprintfW(secBuf, L"%02d", st.wSecond);
+        RECT r2 = { 0, h / 2, w, h };
+        DrawTextW(hdc, secBuf, -1, &r2, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+    } else {
+        // 正常模式：第一行输入法状态+充电标识，第二行电池百分比
+        // 台式机(BatteryLifePercent==255)时不显示充电⚡
+        std::wstring lang = getInputLang();
+        bool isDesktop = (sps.BatteryLifePercent == 255);
+        std::wstring display = (charging && !isDesktop) ? lang + L"\u26A1" : lang;
+        RECT r1 = { 0, 0, w, h / 2 };
+        DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
+            DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+
+        // 第二行：电池百分比（占下半部分）
+        // 台式机无电池时 BatteryLifePercent=255，此时显示⚡
+        std::wstring txt = isDesktop ? L"\u26A1"
+            : std::to_wstring(sps.BatteryLifePercent) + L"%";
+        RECT r2 = { 0, h / 2, w, h };
+        DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
+            DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+    }
 
     SelectObject(hdc, oldFont);
     DeleteObject(font);
@@ -779,6 +801,8 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         GetCursorPos(&pt);
         AppState::dragOffX.store(pt.x);
         AppState::dragOffY.store(pt.y);
+        AppState::clickStartX.store(pt.x);  // 记录单击起始位置
+        AppState::clickStartY.store(pt.y);
         // 记录窗口初始位置（后面 WM_MOUSEMOVE 里用）
         RECT rc = {};
         GetWindowRect(hwnd, &rc);
@@ -794,6 +818,22 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_LBUTTONUP: {
         bool wasDrag = AppState::dragging.exchange(false);
         ReleaseCapture();
+
+        // 检查是否是单击（鼠标没有明显移动）
+        POINT pt = {};
+        GetCursorPos(&pt);
+        int dx = pt.x - AppState::clickStartX.load();
+        int dy = pt.y - AppState::clickStartY.load();
+        int moveDist = dx * dx + dy * dy;  // 用平方比较，避免开方运算
+        bool wasClick = (moveDist < 9);    // 移动距离小于3像素认为是单击
+
+        if (wasClick) {
+            // 切换显示模式
+            bool newMode = !AppState::showTime.load();
+            AppState::showTime.store(newMode);
+            render(hwnd);
+        }
+
         if (wasDrag) {
             // 保存当前位置
             RECT rc = {};
@@ -815,6 +855,20 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CAPTURECHANGED: {
         bool wasDrag = AppState::dragging.exchange(false);
         if (wasDrag) {
+            // 检查是否是单击（鼠标没有明显移动）
+            POINT pt = {};
+            GetCursorPos(&pt);
+            int dx = pt.x - AppState::clickStartX.load();
+            int dy = pt.y - AppState::clickStartY.load();
+            int moveDist = dx * dx + dy * dy;
+            bool wasClick = (moveDist < 9);
+
+            if (wasClick) {
+                // 切换显示模式
+                bool newMode = !AppState::showTime.load();
+                AppState::showTime.store(newMode);
+            }
+
             RECT rc = {};
             GetWindowRect(hwnd, &rc);
             AppState::cfgMutex.lock();
