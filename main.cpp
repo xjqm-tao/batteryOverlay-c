@@ -353,6 +353,7 @@ static void render(HWND hwnd) {
 
     // 第一行：输入法状态 + 充电/接入标识（占上半部分）
     std::wstring lang = getInputLang();
+    std::wstring display;
     if (!hasBattery) {
         // 台式机：显示 🔌 接入图标，无电池
         display = lang + L"\U0001F50C";
