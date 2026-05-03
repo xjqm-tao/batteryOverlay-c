@@ -351,14 +351,18 @@ static void render(HWND hwnd) {
     bool charging = (sps.ACLineStatus == 1);
 
     // 第一行：输入法状态 + 充电标识（占上半部分）
+    // 台式机(BatteryLifePercent==255)时不显示充电⚡
     std::wstring lang = getInputLang();
-    std::wstring display = charging ? lang + L"\u26A1" : lang;
+    bool isDesktop = (sps.BatteryLifePercent == 255);
+    std::wstring display = (charging && !isDesktop) ? lang + L"\u26A1" : lang;
     RECT r1 = { 0, 0, w, h / 2 };
     DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
         DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
     // 第二行：电池百分比（占下半部分）
-    std::wstring txt = std::to_wstring(sps.BatteryLifePercent) + L"%";
+    // 台式机无电池时 BatteryLifePercent=255，此时显示⚡
+    std::wstring txt = isDesktop ? L"\u26A1"
+        : std::to_wstring(sps.BatteryLifePercent) + L"%";
     RECT r2 = { 0, h / 2, w, h };
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
         DT_CENTER | DT_SINGLELINE | DT_VCENTER);
