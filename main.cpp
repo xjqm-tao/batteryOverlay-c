@@ -351,21 +351,25 @@ static void render(HWND hwnd) {
     bool charging = (sps.ACLineStatus == 1);
     bool hasBattery = (sps.BatteryLifePercent != 255); // 255 表示无电池（台式机）
 
-    // 第一行：输入法状态 + 充电/接入标识（占上半部分）
+    // 第一行：输入法状态 + 接入/充电标识（占上半部分）
+    // 台式机（无电池）：仅显示语言状态，无图标
+    // 笔记本 + 充电：显示 🔌 接入图标
+    // 笔记本 + 未充电：仅显示语言状态
     std::wstring lang = getInputLang();
     std::wstring display;
-    if (!hasBattery) {
-        // 台式机：显示 🔌 接入图标，无电池
-        display = lang + L"\U0001F50C";
+    if (hasBattery && charging) {
+        display = lang + L"\U0001F50C"; // 🔌 接入/充电
     } else {
-        display = charging ? lang + L"\u26A1" : lang;
+        display = lang; // 无电池或未充电时无图标
     }
     RECT r1 = { 0, 0, w, h / 2 };
     DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
         DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
     // 第二行：电池百分比（占下半部分）；无电池时显示 🔌
-    std::wstring txt = hasBattery ? (std::to_wstring(sps.BatteryLifePercent) + L"%") : L"\U0001F50C";
+    std::wstring txt = hasBattery
+        ? (std::to_wstring(sps.BatteryLifePercent) + L"%")
+        : L"\U0001F50C"; // 🔌 台式机无电池
     RECT r2 = { 0, h / 2, w, h };
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
         DT_CENTER | DT_SINGLELINE | DT_VCENTER);
