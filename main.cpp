@@ -349,16 +349,22 @@ static void render(HWND hwnd) {
     SYSTEM_POWER_STATUS sps = {};
     GetSystemPowerStatus(&sps);
     bool charging = (sps.ACLineStatus == 1);
+    bool hasBattery = (sps.BatteryLifePercent != 255); // 255 表示无电池（台式机）
 
-    // 第一行：输入法状态 + 充电标识（占上半部分）
+    // 第一行：输入法状态 + 充电/接入标识（占上半部分）
     std::wstring lang = getInputLang();
-    std::wstring display = charging ? lang + L"\u26A1" : lang;
+    if (!hasBattery) {
+        // 台式机：显示 🔌 接入图标，无电池
+        display = lang + L"\U0001F50C";
+    } else {
+        display = charging ? lang + L"\u26A1" : lang;
+    }
     RECT r1 = { 0, 0, w, h / 2 };
     DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
         DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
-    // 第二行：电池百分比（占下半部分）
-    std::wstring txt = std::to_wstring(sps.BatteryLifePercent) + L"%";
+    // 第二行：电池百分比（占下半部分）；无电池时显示 🔌
+    std::wstring txt = hasBattery ? (std::to_wstring(sps.BatteryLifePercent) + L"%") : L"\U0001F50C";
     RECT r2 = { 0, h / 2, w, h };
     DrawTextW(hdc, txt.c_str(), static_cast<int>(txt.size()), &r2,
         DT_CENTER | DT_SINGLELINE | DT_VCENTER);
@@ -439,7 +445,7 @@ static void setAlpha(HWND hwnd, BYTE a) {
 
 static void showAbout(HWND hwnd) {
     int r = MessageBoxW(hwnd,
-        L"电池悬浮窗 v2.0.1.0 (C++ 重写版)\n"
+        L"笔记本电脑电量百分比和输入法状态悬浮窗 v2.0.2.0 (C++ 重写版)\n"
         L"作者：林涛-920250443\n\n"
         L"右键菜单可自定义：\n"
         L"  \xB7 窗口大小（手动输入长宽）\n"
