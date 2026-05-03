@@ -340,13 +340,24 @@ static void render(HWND hwnd) {
     // 设置背景色使抗锯齿边缘与背景融合
     SetBkColor(hdc, bc);
 
-    // 创建字体（微软雅黑 UI）
-    HFONT font = CreateFontW(fsz, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    // 创建字体
+    // 时间模式：用 Segoe UI 字体（对数字和冒号渲染更好），字号稍小并增加字符间距
+    int fontSize = fsz;
+    const wchar_t* fontName = L"Microsoft YaHei UI";
+    if (AppState::showTime.load()) {
+        fontSize = std::max(fsz - 1, 6);
+        fontName = L"Segoe UI";
+    }
+    HFONT font = CreateFontW(fontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei UI");
+        ANTIALIASED_QUALITY, DEFAULT_PITCH, fontName);
     HFONT oldFont = static_cast<HFONT>(SelectObject(hdc, font));
     SetTextColor(hdc, fc);
     SetBkMode(hdc, TRANSPARENT);
+    // 时间模式增加字符间距，避免冒号与数字重叠
+    if (AppState::showTime.load()) {
+        SetTextCharacterExtra(hdc, 1);
+    }
 
     // 获取电池状态
     SYSTEM_POWER_STATUS sps = {};
