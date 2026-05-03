@@ -7,8 +7,8 @@ CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "../res/app.manifest"
 
 // version info
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 2,0,1,0
-PRODUCTVERSION 2,0,1,0
+FILEVERSION 2,0,3,0
+PRODUCTVERSION 2,0,3,0
 FILEFLAGSMASK 0x3FL
 #ifdef _DEBUG
 FILEFLAGS 0x1L
@@ -24,12 +24,12 @@ BEGIN
         BLOCK "080404B0"
         BEGIN
             VALUE "CompanyName", "920250443"
-            VALUE "FileDescription", "Battery Overlay"
-            VALUE "FileVersion", "2.0.1.0"
+            VALUE "FileDescription", "显示笔记本电量百分比和输入法状态-920250443"
+            VALUE "FileVersion", "2.0.3.0"
             VALUE "InternalName", "battery_overlay"
             VALUE "OriginalFilename", "battery_overlay.exe"
             VALUE "ProductName", "Battery Overlay"
-            VALUE "ProductVersion", "2.0.1.0"
+            VALUE "ProductVersion", "2.0.3.0"
             VALUE "LegalCopyright", "Copyright (C) 2026 xjqm-tao"
         END
     END

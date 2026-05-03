@@ -439,7 +439,7 @@ static void setAlpha(HWND hwnd, BYTE a) {
 
 static void showAbout(HWND hwnd) {
     int r = MessageBoxW(hwnd,
-        L"电池悬浮窗 v2.0.1.0 (C++ 重写版)\n"
+        L"笔记本电脑电量百分比和输入法状态悬浮窗 v2.0.3.0 (C++ 重写版)\n"
         L"作者：林涛-920250443\n\n"
         L"右键菜单可自定义：\n"
         L"  \xB7 窗口大小（手动输入长宽）\n"
