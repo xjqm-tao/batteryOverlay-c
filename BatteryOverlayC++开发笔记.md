@@ -182,3 +182,55 @@ bool wasClick = (moveDist < 9);  // 3^2 = 9
 **相关状态变量：**
 - `AppState::showTime` - 显示模式切换标志
 - `AppState::clickStartX/clickStartY` - 单击起始位置
+
+### 7. 输入法状态检测不准确（getInputLang 逻辑错误）
+
+**问题：** 输入法状态"中"/"en"有时检测不正确，且原解决方案本身有错误。
+
+**原因：**
+- `GetKeyboardLayout(0)` 读的是悬浮窗自己线程的键盘布局，永远不会跟随用户切换输入法
+- fallback 分支用 `GetKeyboardLayoutList` 判断，那是"系统是否装过中文输入法"，不是"当前是否正在用中文输入"，逻辑完全错误
+- 缺少 `IMC_GETOPENSTATUS` 检查，IME 关闭时应返回 "en"
+- 原笔记第 2 条的解决方案有误，需更正
+
+**解决：**
+- 改用前台窗口线程的 HKL：`GetWindowThreadProcessId` + `GetKeyboardLayout(fgThreadId)`
+- 新增 `IMC_GETOPENSTATUS` 检查，IME 关闭时直接返回 "en"
+- fallback 分支改为保守返回 "en"（不再用 `GetKeyboardLayoutList`）
+- 更正原笔记第 2 条的解决方法（见下方更新）
+
+### 8. RGB 颜色 R/B 分量互换
+
+**问题：** 自定义背景颜色和字体颜色时，R 和 B 值实际效果互换，配置文件也一样。
+
+**原因：** `RGB` 宏参数是 `(r, g, b)`，但代码中写成了 `RGB(fb, fg, fr)` 和 `RGB(bb, bg, br)`，顺序错误。
+
+**解决：**
+- `fontColorRef()`：`RGB(fb, fg, fr)` → `RGB(fr, fg, fb)`
+- `bgColorRef()`：`RGB(bb, bg, br)` → `RGB(br, bg, bb)`
+
+### 9. CapsLock 检测导致"EN"只闪现一下
+
+**问题：** 大写锁定时应该持续显示"EN"，但实际是每次按下大写锁定键时只闪现一下。
+
+**原因：** 误用 `GetAsyncKeyState(VK_CAPITAL)`，其 bit0 表示"自上次调用以来是否按过"，不是切换状态。
+
+**解决：** 改回 `GetKeyState(VK_CAPITAL) & 0x0001`，定时器在主线程，读取正确。
+
+---
+
+## 更正历史记录
+
+### 第 2 条（IME 输入法状态检测）解决方法更正
+
+~~原记录（错误）：~~
+- `GetKeyState(VK_CAPITAL) & 0x0001` 检测 Caps Lock 切换状态
+- `GetKeyboardLayout(0)` 获取当前线程键盘布局
+- `ImmGetDefaultIMEWnd(GetForegroundWindow())` 跨进程获取 IME 窗口
+- `GetKeyboardLayoutList` 枚举键盘布局列表作为备选方案
+
+**更正后（正确）：**
+- `GetKeyState(VK_CAPITAL) & 0x0001` 检测 Caps Lock 切换状态（定时器在主线程，读取正确）
+- `GetWindowThreadProcessId` + `GetKeyboardLayout(fgThreadId)` 获取**前台窗口线程**的键盘布局
+- `ImmGetDefaultIMEWnd(GetForegroundWindow())` 获取 IME 窗口后，先检查 `IMC_GETOPENSTATUS`
+- IME 无法获取时保守返回 "en"，**不使用** `GetKeyboardLayoutList` 作为备选（逻辑错误）

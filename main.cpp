@@ -63,7 +63,7 @@ struct Config {
     static Config defaults() {
         return { -1, -1, 33, 34,
                  255, 255, 255,  // 默认字体颜色
-                 63,32,0, 204 }; // 默认背景色 + 透明度
+                 0,32,63, 204 }; // 默认背景色 + 透明度
     }
 
     COLORREF fontColorRef() const {
