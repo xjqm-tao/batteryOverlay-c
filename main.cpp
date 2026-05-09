@@ -61,17 +61,17 @@ struct Config {
     BYTE br, bg, bb, ba; // 背景颜色 RGB + 透明度
 
     static Config defaults() {
-        return { -1, -1, 32, 32,
-                 90, 202, 106,  // 默认字体颜色
-                 80, 60, 50, 210 }; // 默认背景色 + 透明度
+        return { -1, -1, 33, 34,
+                 255, 255, 255,  // 默认字体颜色
+                 63,32,0, 204 }; // 默认背景色 + 透明度
     }
 
     COLORREF fontColorRef() const {
-        return RGB(fb, fg, fr);
+        return RGB(fr, fg, fb);
     }
 
     COLORREF bgColorRef() const {
-        return RGB(bb, bg, br);
+        return RGB(br, bg, bb);
     }
 
     int fontSize() const {
@@ -195,9 +195,10 @@ static void saveConfig() {
 //   Caps Lock 切换到关 + 英文输入 → "en"
 //   Caps Lock 切换到关 + 中文输入 → "中"
 static std::wstring getInputLang() {
-    // 【修复1】用 GetAsyncKeyState 获取全局 CapsLock 状态
-    // GetKeyState 是线程局部的，定时器线程的状态可能不同步
-    bool capsOn = (GetAsyncKeyState(VK_CAPITAL) & 0x0001) != 0;
+    // 用 GetKeyState 获取 CapsLock 切换状态
+    // GetAsyncKeyState 的 bit0 表示"自上次调用以来是否按过"，不是切换状态
+    // GetKeyState 的 bit0 才是 CapsLock 的切换状态，定时器运行在主线程，读取正确
+    bool capsOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
     if (capsOn) return L"EN";
 
     // 【修复2】获取前台窗口，以及前台窗口所在线程的键盘布局
@@ -461,7 +462,7 @@ static void setAlpha(HWND hwnd, BYTE a) {
 
 static void showAbout(HWND hwnd) {
     int r = MessageBoxW(hwnd,
-        L"笔记本电脑电量百分比和输入法状态悬浮窗 v2.0.3.0 (C++ 重写版)\n"
+        L"笔记本电脑电量百分比和输入法状态悬浮窗 v2.0.4.0 (C++ 重写版)\n"
         L"作者：林涛-920250443\n\n"
         L"右键菜单可自定义：\n"
         L"  \xB7 窗口大小（手动输入长宽）\n"
