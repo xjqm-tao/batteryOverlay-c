@@ -195,15 +195,20 @@ static void saveConfig() {
 //   Caps Lock 切换到关 + 英文输入 → "en"
 //   Caps Lock 切换到关 + 中文输入 → "中"
 static std::wstring getInputLang() {
-    // GetKeyState(VK_CAPITAL) 返回值：
-    //   bit0 (0x0001) = toggle 状态：1=CapsLock开, 0=CapsLock关
-    //   bit15 (0x8000) = 按键当前是否按下（仅在按键按下瞬间为1）
-    // 用 bit0 检测 CapsLock 切换状态，不用 bit15（否则松键后就丢了状态）
-    bool capsOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
+    // 【修复1】用 GetAsyncKeyState 获取全局 CapsLock 状态
+    // GetKeyState 是线程局部的，定时器线程的状态可能不同步
+    bool capsOn = (GetAsyncKeyState(VK_CAPITAL) & 0x0001) != 0;
     if (capsOn) return L"EN";
 
-    // 获取当前输入法线程的键盘布局（稳定，不受前台窗口闪烁影响）
-    HKL hkl = GetKeyboardLayout(0);
+    // 【修复2】获取前台窗口，以及前台窗口所在线程的键盘布局
+    // GetKeyboardLayout(0) 读的是自己线程的布局，不会跟随用户切换输入法
+    HWND fg = GetForegroundWindow();
+    if (!fg || fg == AppState::mainHwnd.load()) {
+        return L"en";
+    }
+
+    DWORD fgThreadId = GetWindowThreadProcessId(fg, nullptr);
+    HKL hkl = GetKeyboardLayout(fgThreadId);
     LANGID lid = static_cast<LANGID>(reinterpret_cast<UINT_PTR>(hkl) & 0xFFFF);
 
     // 非 CJK 键盘：英文输入
@@ -212,40 +217,24 @@ static std::wstring getInputLang() {
         return L"en";
     }
 
-    // 尝试获取前台窗口 IME
-    HWND fg = GetForegroundWindow();
-    if (fg && fg != AppState::mainHwnd.load()) {
-        HWND ime = ImmGetDefaultIMEWnd(fg);
-        if (ime) {
-            LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
-            bool cn = (r & 0x001) != 0;
-            if (lid == 0x0411) return cn ? L"\u3042" : L"\u30a2";
-            if (lid == 0x0412) return cn ? L"\ud55c" : L"\uac00";
-            return cn ? L"\u4e2d" : L"en";
-        }
+    // 【修复3】尝试获取前台窗口 IME，先检查 IME 是否打开
+    HWND ime = ImmGetDefaultIMEWnd(fg);
+    if (ime) {
+        // 先检查 IME 打开状态，关闭则说明是英文输入
+        LRESULT open = SendMessageW(ime, WM_IME_CTRL, IMC_GETOPENSTATUS, 0);
+        if (!open) return L"en";
+
+        LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
+        bool cn = (r & 0x001) != 0;
+        if (lid == 0x0411) return cn ? L"\u3042" : L"\u30a2";
+        if (lid == 0x0412) return cn ? L"\ud55c" : L"\uac00";
+        return cn ? L"\u4e2d" : L"en";
     }
 
-    // ime 为 null 或 fg 无效：枚举键盘布局列表判断
-    HKL hklList[16];
-    int n = GetKeyboardLayoutList(16, hklList);
-    bool hasIME = false;
-    for (int i = 0; i < n; i++) {
-        LANGID tl = static_cast<LANGID>(
-            reinterpret_cast<UINT_PTR>(hklList[i]) & 0xFFFF);
-        if (tl == 0x0804 || tl == 0x0404 || tl == 0x1004 || tl == 0x0C04) {
-            hasIME = true;
-            break;
-        }
-    }
-    // 备选：键盘布局本身是中文
-    if (!hasIME && (lid == 0x0804 || lid == 0x0404 ||
-                    lid == 0x1004 || lid == 0x0C04)) {
-        hasIME = true;
-    }
-
-    if (lid == 0x0411) return hasIME ? L"\u3042" : L"\u30a2";
-    if (lid == 0x0412) return hasIME ? L"\ud55c" : L"\uac00";
-    return hasIME ? L"\u4e2d" : L"en";
+    // 【修复4】无法获取 IME 窗口时，保守返回 "en"
+    // 原代码用 GetKeyboardLayoutList 判断，那是"系统是否装过中文输入法"
+    // 不是"当前是否正在用中文输入"，逻辑完全错误
+    return L"en";
 }
 
 // ══════════════════════════════
