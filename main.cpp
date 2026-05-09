@@ -166,7 +166,7 @@ static void loadConfig() {
     c.br = static_cast<BYTE>(std::clamp(jsonI32(data, L"br"), 0, 255));
     c.bg = static_cast<BYTE>(std::clamp(jsonI32(data, L"bg"), 0, 255));
     c.bb = static_cast<BYTE>(std::clamp(jsonI32(data, L"bb"), 0, 255));
-    c.ba = static_cast<BYTE>(std::clamp(jsonI32(data, L"ba"), 0, 255));
+    c.ba = static_cast<BYTE>(std::clamp(jsonI32(data, L"ba"), 1, 255));
 }
 
 static void saveConfig() {
@@ -266,7 +266,7 @@ static std::optional<std::tuple<BYTE,BYTE,BYTE>> parseRgb(const std::wstring& s)
 static std::optional<BYTE> parseAlpha(const std::wstring& s) {
     try {
         int v = std::stoi(s);
-        if (v < 0 || v > 255) return {};
+        if (v < 1 || v > 255) return {};
         return static_cast<BYTE>(v);
     } catch (...) { return {}; }
 }
@@ -395,7 +395,7 @@ static void render(HWND hwnd) {
     for (int i = 0; i < w * h; i++) {
         int i4 = i * 4;
         if (px[i4] == bb && px[i4 + 1] == bg_ && px[i4 + 2] == br) {
-            px[i4 + 3] = ba;
+            px[i4 + 3] = std::max(ba, (BYTE)1);
         } else {
             px[i4 + 3] = 255;
         }
@@ -455,7 +455,7 @@ static void setBgColor(HWND hwnd, BYTE r, BYTE g, BYTE b) {
 static void setAlpha(HWND hwnd, BYTE a) {
     {
         std::lock_guard<std::mutex> lock(AppState::cfgMutex);
-        AppState::cfg.ba = a;
+        AppState::cfg.ba = std::max(a, (BYTE)1);
         saveConfig();
     }
     render(hwnd);
@@ -1058,14 +1058,14 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             std::wstring cur = std::to_wstring(ba);
             auto input = inputDialog(hwnd, L"\u900F\u660E\u5EA6",
-                L"\u8BF7\u8F93\u5165\u900F\u660E\u5EA6 (0-255)\uFF0C0=\u5168\u900F\u660E 255=\u4E0D\u900F\u660E", cur.c_str());
+                L"\u8BF7\u8F93\u5165\u900F\u660E\u5EA6 (1-255)\uFF0C1=\u534A\u900F\u660E 255=\u4E0D\u900F\u660E", cur.c_str());
             if (input) {
                 auto a = parseAlpha(*input);
                 if (a) {
                     setAlpha(hwnd, *a);
                 } else {
                     MessageBoxW(hwnd,
-                        L"\u65E0\u6548\u7684\u900F\u660E\u5EA6\u6570\u503C\uFF01\n\u8BF7\u8F93\u5165 0-255 \u4E4B\u95F4\u7684\u6574\u6570",
+                        L"\u65E0\u6548\u7684\u900F\u660E\u5EA6\u6570\u503C\uFF01\n\u8BF7\u8F93\u5165 1-255 \u4E4B\u95F4\u7684\u6574\u6570",
                         L"\u9519\u8BEF", MB_OK | MB_ICONERROR);
                 }
             }
