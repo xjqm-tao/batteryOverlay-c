@@ -390,10 +390,11 @@ static void render(HWND hwnd) {
     DeleteObject(font);
 
     // 设置 Alpha 通道：背景像素半透明，文字/抗锯齿像素完全不透明
+    // DIB 像素格式为 BGRA（B 在最低地址），需按 BGR 顺序比较
     auto px = static_cast<BYTE*>(bits);
     for (int i = 0; i < w * h; i++) {
         int i4 = i * 4;
-        if (px[i4] == br && px[i4 + 1] == bg_ && px[i4 + 2] == bb) {
+        if (px[i4] == bb && px[i4 + 1] == bg_ && px[i4 + 2] == br) {
             px[i4 + 3] = ba;
         } else {
             px[i4 + 3] = 255;
