@@ -143,6 +143,17 @@ mp.y = (int)(short)HIWORD(pos);
 
 ---
 
+### 10. 自定义背景透明度无效
+
+**问题：** 在右键菜单设置背景透明度后，背景透明度没有变化，始终全透明或全不透明。
+
+**原因：** `render` 函数中 Alpha 通道处理的颜色比较顺序错误。32bpp BI_RGB DIB 像素格式为 **BGRA**（B 在最低地址），但代码按 `px[i4]==br && px[i4+1]==bg_ && px[i4+2]==bb`（RGB 顺序）比较，导致背景像素的 Alpha 值永远不匹配，`ba` 设置无效。
+
+**解决：** 将颜色比较改为正确的 BGR 顺序：
+`px[i4] == bb && px[i4+1] == bg_ && px[i4+2] == br`
+
+---
+
 ## 关键 API 参考
 
 | 功能 | API |
@@ -234,3 +245,20 @@ bool wasClick = (moveDist < 9);  // 3^2 = 9
 - `GetWindowThreadProcessId` + `GetKeyboardLayout(fgThreadId)` 获取**前台窗口线程**的键盘布局
 - `ImmGetDefaultIMEWnd(GetForegroundWindow())` 获取 IME 窗口后，先检查 `IMC_GETOPENSTATUS`
 - IME 无法获取时保守返回 "en"，**不使用** `GetKeyboardLayoutList` 作为备选（逻辑错误）
+
+### 11. 透明度为 0 时程序无响应（无法拖拽、右键菜单不弹出）
+
+**问题：** 在右键菜单将背景透明度设置为 0 后，窗口无法拖拽，右键点击也无菜单弹出，表现为"卡死"。
+
+**原因：** `ba=0` 时，背景像素的 Alpha 值为 0（完全透明）。Windows 对分层窗口（WS_EX_LAYERED + 每像素 Alpha）**只对 Alpha > 0 的像素发送鼠标消息**。背景全透明后，只有文字像素（Alpha=255）能接收鼠标消息，但文字区域很小，很难点中，表现为窗口无响应。
+
+**修复：**
+1. `render()` 中背景 Alpha 使用 `std::max(ba, (BYTE)1)`，确保背景始终有至少 1 的 Alpha 值
+2. `setAlpha()` 中存储 `std::max(a, (BYTE)1)`，拒绝 `ba=0`
+3. `loadConfig()` 中 `ba` 下限改为 1，防止从配置文件加载到 0
+4. `parseAlpha()` 中拒绝 0，有效范围改为 1-255
+5. 透明度输入框提示和错误提示同步更新为 1-255
+
+**经验：** Windows 分层窗口的鼠标命中检测依赖 Alpha 通道，Alpha=0 的像素对该窗口"不存在"。设置透明度时必须保留至少 1 的 Alpha 值以保证交互性。
+
+---
