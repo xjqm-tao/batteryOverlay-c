@@ -1,7 +1,7 @@
 /**
  * battery_overlay - C++ 重写版
  * 作者：林涛 -920250443
- * 功能：桌面悬浮窗，显示电池百分比 + 输入法状态
+ * 功能：桌面悬浮窗，显示电池百分比 + 充电状态
  */
 
 #define UNICODE
@@ -14,7 +14,6 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
-#include <imm.h>
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <string>
@@ -27,7 +26,6 @@
 #include <algorithm>
 #include <cstdlib>
 
-#pragma comment(lib, "imm32.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -48,11 +46,6 @@ constexpr wchar_t CLASS_NAME[]    = L"BatteryOverlayClass";
 constexpr wchar_t DLG_CLASS[]    = L"BODlg";
 constexpr wchar_t SZDLG_CLASS[]  = L"BOSzDlg";
 
-// IME 控制常量
-constexpr UINT WM_IME_CTRL     = 0x0283;
-constexpr UINT IMC_GETOPENSTATUS  = 0x0005;
-constexpr UINT IMC_GETCONVERSIONMODE = 0x001;
-
 // ══════════════
 // 配置结构体
 struct Config {
@@ -61,7 +54,7 @@ struct Config {
     BYTE br, bg, bb, ba; // 背景颜色 RGB + 透明度
 
     static Config defaults() {
-        return { -1, -1, 33, 34,
+        return { -1, -1, 33, 33,
                  255, 255, 255,  // 默认字体颜色
                  0,32,63, 204 }; // 默认背景色 + 透明度
     }
@@ -189,54 +182,9 @@ static void saveConfig() {
 }
 
 // ═══════════════════
-// 输入法检测（跨进程方案）
-// 预期逻辑：
-//   Caps Lock 切换到开 → "EN"
-//   Caps Lock 切换到关 + 英文输入 → "en"
-//   Caps Lock 切换到关 + 中文输入 → "中"
-static std::wstring getInputLang() {
-    // 用 GetKeyState 获取 CapsLock 切换状态
-    // GetAsyncKeyState 的 bit0 表示"自上次调用以来是否按过"，不是切换状态
-    // GetKeyState 的 bit0 才是 CapsLock 的切换状态，定时器运行在主线程，读取正确
-    bool capsOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
-    if (capsOn) return L"EN";
+// ════════════
+// 工具函数
 
-    // 【修复2】获取前台窗口，以及前台窗口所在线程的键盘布局
-    // GetKeyboardLayout(0) 读的是自己线程的布局，不会跟随用户切换输入法
-    HWND fg = GetForegroundWindow();
-    if (!fg || fg == AppState::mainHwnd.load()) {
-        return L"en";
-    }
-
-    DWORD fgThreadId = GetWindowThreadProcessId(fg, nullptr);
-    HKL hkl = GetKeyboardLayout(fgThreadId);
-    LANGID lid = static_cast<LANGID>(reinterpret_cast<UINT_PTR>(hkl) & 0xFFFF);
-
-    // 非 CJK 键盘：英文输入
-    if (lid != 0x0804 && lid != 0x0404 && lid != 0x1004 && lid != 0x0C04
-        && lid != 0x0411 && lid != 0x0412) {
-        return L"en";
-    }
-
-    // 【修复3】尝试获取前台窗口 IME，先检查 IME 是否打开
-    HWND ime = ImmGetDefaultIMEWnd(fg);
-    if (ime) {
-        // 先检查 IME 打开状态，关闭则说明是英文输入
-        LRESULT open = SendMessageW(ime, WM_IME_CTRL, IMC_GETOPENSTATUS, 0);
-        if (!open) return L"en";
-
-        LRESULT r = SendMessageW(ime, WM_IME_CTRL, IMC_GETCONVERSIONMODE, 0);
-        bool cn = (r & 0x001) != 0;
-        if (lid == 0x0411) return cn ? L"\u3042" : L"\u30a2";
-        if (lid == 0x0412) return cn ? L"\ud55c" : L"\uac00";
-        return cn ? L"\u4e2d" : L"en";
-    }
-
-    // 【修复4】无法获取 IME 窗口时，保守返回 "en"
-    // 原代码用 GetKeyboardLayoutList 判断，那是"系统是否装过中文输入法"
-    // 不是"当前是否正在用中文输入"，逻辑完全错误
-    return L"en";
-}
 
 // ══════════════════════════════
 // 工具函数
@@ -368,14 +316,25 @@ static void render(HWND hwnd) {
         RECT r2 = { 0, h / 2, w, h };
         DrawTextW(hdc, secBuf, -1, &r2, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
     } else {
-        // 正常模式：第一行输入法状态+充电标识，第二行电池百分比
-        // 台式机(BatteryLifePercent==255)时不显示充电⚡
-        std::wstring lang = getInputLang();
+        // 正常模式：第一行充电/电池图标，第二行电池百分比
         bool isDesktop = (sps.BatteryLifePercent == 255);
-        std::wstring display = (charging && !isDesktop) ? lang + L"\u26A1" : lang;
+        
+        // 第一行：图标（不使用字体颜色，使用系统默认色）
+        SetTextColor(hdc, GetSysColor(COLOR_WINDOWTEXT));
+        std::wstring icon = L"";
+        if (isDesktop) {
+            icon = L"\U0001F50C";  // 🔌
+        } else if (charging) {
+            icon = L"\u26A1";  // ⚡
+        } else {
+            icon = L"\U0001F50B";  // 🔋
+        }
         RECT r1 = { 2, 0, w, h / 2 };
-        DrawTextW(hdc, display.c_str(), static_cast<int>(display.size()), &r1,
+        DrawTextW(hdc, icon.c_str(), static_cast<int>(icon.size()), &r1,
             DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+        
+        // 恢复字体颜色用于第二行
+        SetTextColor(hdc, fc);
 
         // 第二行：电池百分比（占下半部分）
         // 台式机无电池时 BatteryLifePercent=255，此时显示⚡
@@ -463,7 +422,7 @@ static void setAlpha(HWND hwnd, BYTE a) {
 
 static void showAbout(HWND hwnd) {
     int r = MessageBoxW(hwnd,
-        L"笔记本电脑电量百分比和输入法状态悬浮窗 v2.0.4.0 (C++ 重写版)\n"
+        L"笔记本电脑电量百分比悬浮窗 v2.0.5.0 (C++ 重写版)\n"
         L"作者：林涛-920250443\n\n"
         L"右键菜单可自定义：\n"
         L"  \xB7 窗口大小（手动输入长宽）\n"
