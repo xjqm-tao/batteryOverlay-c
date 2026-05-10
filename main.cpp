@@ -319,14 +319,19 @@ static void render(HWND hwnd) {
         // 正常模式：第一行充电/电池图标，第二行电池百分比
         bool isDesktop = (sps.BatteryLifePercent == 255);
         
-        // 第一行：图标（不使用字体颜色，使用系统默认色）
-        SetTextColor(hdc, GetSysColor(COLOR_WINDOWTEXT));
+        // 第一行：图标
         std::wstring icon = L"";
         if (isDesktop) {
+            // 台式机：🔌 不应用字体颜色，用系统默认色
+            SetTextColor(hdc, GetSysColor(COLOR_WINDOWTEXT));
             icon = L"\U0001F50C";  // 🔌
         } else if (charging) {
+            // 充电时：⚡ 应用字体颜色
+            SetTextColor(hdc, fc);
             icon = L"\u26A1";  // ⚡
         } else {
+            // 不充电：🔋 不应用字体颜色，用系统默认色
+            SetTextColor(hdc, GetSysColor(COLOR_WINDOWTEXT));
             icon = L"\U0001F50B";  // 🔋
         }
         RECT r1 = { 2, 0, w, h / 2 };
