@@ -322,16 +322,13 @@ static void render(HWND hwnd) {
         // 第一行：图标
         std::wstring icon = L"";
         if (isDesktop) {
-            // 台式机：PWR 不应用字体颜色，用系统默认色
-            SetTextColor(hdc, GetSysColor(COLOR_WINDOWTEXT));
+            // 台式机：PWR 应用字体颜色
             icon = L"PWR";  // 代替 🔌
         } else if (charging) {
             // 充电时：⚡ 应用字体颜色
-            SetTextColor(hdc, fc);
             icon = L"\u26A1";  // ⚡
         } else {
-            // 不充电：BAT 不应用字体颜色，用系统默认色
-            SetTextColor(hdc, GetSysColor(COLOR_WINDOWTEXT));
+            // 不充电：BAT 应用字体颜色
             icon = L"BAT";  // 代替 🔋
         }
         RECT r1 = { 2, 0, w, h / 2 };
