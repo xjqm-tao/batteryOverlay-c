@@ -971,23 +971,21 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             // 智能显示时间偏移量（根据大小选择单位）
             double offset = AppState::ntpOffsetSec.load();
             std::wstring offsetStr;
+            wchar_t buf[64];
             
             // 根据偏移量大小选择单位，并添加正负号
             if (std::abs(offset) < 1.0) {
-                // 小于1秒，显示毫秒
-                offsetStr = L"(";
-                if (offset >= 0) offsetStr += L"+";
-                offsetStr += std::to_wstring((int)(offset * 1000)) + L"ms)";
+                // 小于1秒，显示毫秒（保留1位小数）
+                swprintf(buf, 64, L"(%.1fms)", offset * 1000);
+                offsetStr = buf;
             } else if (std::abs(offset) < 3600.0) {
-                // 1秒到1小时之间，显示秒
-                offsetStr = L"(";
-                if (offset >= 0) offsetStr += L"+";
-                offsetStr += std::to_wstring((int)offset) + L"s)";
+                // 1秒到1小时之间，显示秒（保留1位小数）
+                swprintf(buf, 64, L"(%.1fs)", offset);
+                offsetStr = buf;
             } else {
-                // 大于1小时，显示小时
-                offsetStr = L"(";
-                if (offset >= 0) offsetStr += L"+";
-                offsetStr += std::to_wstring((int)(offset / 3600)) + L"h)";
+                // 大于1小时，显示小时（保留1位小数）
+                swprintf(buf, 64, L"(%.1fh)", offset / 3600);
+                offsetStr = buf;
             }
             
             // 组装显示文本：授时成功|相对系统延迟：(±XXms/s/h)
