@@ -1134,6 +1134,22 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
         }
 
+        case ID_NTP_STATUS: {
+            // 点击"授时成功|本地延迟：..."或"授时失败"时重新授时
+            // 防止重复点击（3秒冷却）
+            static DWORD lastNtpClick = 0;
+            DWORD nowTick = GetTickCount();
+            if (nowTick - lastNtpClick < 3000) {
+                MessageBoxW(hwnd, L"授时正在进行中，请稍候...", L"提示", MB_OK | MB_ICONINFORMATION);
+                break;
+            }
+            lastNtpClick = nowTick;
+            
+            // 触发重新授时
+            startNtpSyncAsync(hwnd);
+            break;
+        }
+
         case ID_ABOUT:
             showAbout(hwnd);
             break;

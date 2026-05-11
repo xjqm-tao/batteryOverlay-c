@@ -120,10 +120,13 @@ std::optional<NtpResult> syncNtpTime(const char* server, int timeoutMs) {
     // 解析 NTP 响应
     NTPPacket* ntpResp = (NTPPacket*)response;
     DWORD ntpSeconds = ntohl(ntpResp->transTimestamp[0]);
-
+    
+    // 转换 NTP 时间为 Unix 时间戳
+    result.ntpTime = ntpToUnix(ntpSeconds);  // ✅ 关键修复：必须设置 ntpTime
+    
     // 获取系统时区
     getSystemTimeZone(result.timezoneBias, result.timezoneName);
-
+    
     // 计算时间偏移量（秒）：本地时间 - NTP 时间
     time_t now = time(nullptr);
     result.offsetSec = difftime(now, result.ntpTime);
