@@ -332,7 +332,8 @@ static void render(HWND hwnd) {
 
             LARGE_INTEGER li;
             QueryPerformanceCounter(&li);
-            LONGLONG elapsedSec = (li.QuadPart - AppState::ntpSteadyCount.load()) / frequency;
+            // 计算经过的秒数（浮点数，保证精度）
+            double elapsedSec = (double)(li.QuadPart - AppState::ntpSteadyCount.load()) / (double)frequency;
             time_t displayTime = AppState::ntpBaseTime.load() + (time_t)elapsedSec;
 
             tm timeStruct;
