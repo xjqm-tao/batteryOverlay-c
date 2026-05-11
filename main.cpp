@@ -108,7 +108,7 @@ namespace AppState {
     // NTP 授时状态
     std::atomic<bool>   ntpSynced{false};
     std::atomic<DWORD>  ntpDelay{0};      // 延迟（毫秒）
-    std::atomic<time_t> ntpBaseTime{0};   // 授时成功时的 NTP 时间（秒）
+    std::atomic<LONGLONG> ntpBaseTimeMs{0}; // 授时成功时的 NTP 时间（毫秒）
     std::atomic<LONGLONG> ntpSteadyCount{0}; // 授时时的性能计数器值
     std::atomic<double> ntpOffsetSec{0.0};    // 时间偏移量（秒）
     std::atomic<bool>   ntpFailed{false}; // 是否失败
@@ -334,7 +334,8 @@ static void render(HWND hwnd) {
             QueryPerformanceCounter(&li);
             // 计算经过的秒数（浮点数，保证精度）
             double elapsedSec = (double)(li.QuadPart - AppState::ntpSteadyCount.load()) / (double)frequency;
-            time_t displayTime = AppState::ntpBaseTime.load() + (time_t)elapsedSec;
+            // ntpBaseTimeMs 是毫秒级时间戳，需要转换为秒
+            time_t displayTime = (time_t)(AppState::ntpBaseTimeMs.load() / 1000) + (time_t)elapsedSec;
 
             tm timeStruct;
             localtime_s(&timeStruct, &displayTime);
@@ -802,7 +803,8 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             AppState::ntpSynced.store(true);
             AppState::ntpFailed.store(false);
             AppState::ntpDelay.store(result.delay);
-            AppState::ntpBaseTime.store(result.ntpTime);
+            // 将 NTP 时间（秒，带小数）转换为毫秒存储
+            AppState::ntpBaseTimeMs.store((LONGLONG)(result.ntpTime * 1000));
             AppState::ntpSteadyCount.store(result.steadyCount);
             AppState::ntpOffsetSec.store(result.offsetSec);
 

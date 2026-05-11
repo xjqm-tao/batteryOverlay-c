@@ -120,16 +120,21 @@ std::optional<NtpResult> syncNtpTime(const char* server, int timeoutMs) {
     // 解析 NTP 响应
     NTPPacket* ntpResp = (NTPPacket*)response;
     DWORD ntpSeconds = ntohl(ntpResp->transTimestamp[0]);
+    DWORD ntpFraction = ntohl(ntpResp->transTimestamp[1]);  // NTP 时间戳的小数部分
     
-    // 转换 NTP 时间为 Unix 时间戳
-    result.ntpTime = ntpToUnix(ntpSeconds);  // ✅ 关键修复：必须设置 ntpTime
+    // 转换 NTP 时间为 Unix 时间戳（带亚秒精度）
+    // NTP 小数部分是 32 位，表示秒的分数：fraction / 2^32
+    result.ntpTime = (double)(ntpSeconds - 2208988800ULL) + (double)ntpFraction / (double)(1ULL << 32);
     
     // 获取系统时区
     getSystemTimeZone(result.timezoneBias, result.timezoneName);
     
-    // 计算时间偏移量（秒）：本地时间 - NTP 时间
-    time_t now = time(nullptr);
-    result.offsetSec = difftime(now, result.ntpTime);
+    // 计算时间偏移量（带亚秒精度）：本地时间 - NTP 时间
+    auto now_chrono = std::chrono::system_clock::now();
+    auto now_sec = std::chrono::duration_cast<std::chrono::seconds>(now_chrono.time_since_epoch()).count();
+    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_chrono.time_since_epoch()).count() % 1000;
+    double now_exact = (double)now_sec + (double)now_ms / 1000.0;
+    result.offsetSec = now_exact - result.ntpTime;
 
     // 记录性能计数器（用于后续计算精确时间）
     LARGE_INTEGER li;

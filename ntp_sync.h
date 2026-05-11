@@ -17,7 +17,7 @@ enum class NtpStatus {
 // NTP 同步结果
 struct NtpResult {
     NtpStatus status = NtpStatus::Idle;
-    time_t ntpTime = 0;           // NTP 时间（秒时间戳）
+    double ntpTime = 0.0;        // NTP 时间（秒时间戳，带小数精度）
     DWORD delay = 0;              // NTP 请求延迟（毫秒）
     int timezoneBias = 0;        // 时区偏移（分钟）
     std::wstring timezoneName;    // 时区名称
