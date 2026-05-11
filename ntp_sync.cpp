@@ -25,9 +25,9 @@ struct NTPPacket {
     DWORD rootDispersion;   // 根离散
     DWORD refId;            // 参考 ID
     DWORD refTimestamp[2];  // 参考时间戳
-    DWORD origTimestamp[2]; // 原始时间戳（客户端发送时间）
-    DWORD recvTimestamp[2]; // 接收时间戳（服务器接收时间）
-    DWORD transTimestamp[2];// 传输时间戳（服务器发送时间 = T3）
+    DWORD origTimestamp[2]; // 原始时间戳
+    DWORD recvTimestamp[2]; // 接收时间戳
+    DWORD transTimestamp[2];// 传输时间戳
 };
 #pragma pack(pop)
 
@@ -90,7 +90,7 @@ std::optional<NtpResult> syncNtpTime(const char* server, int timeoutMs) {
     // 构造 NTP 请求包
     NTPPacket packet = {};
     packet.leapVersionMode = (0 << 6) | (4 << 3) | 3; // LI=0, VN=4, Mode=3 (Client)
-    
+
     // 发送请求
     int sent = sendto(sock, (const char*)&packet, sizeof(packet), 0,
                addr->ai_addr, (int)addr->ai_addrlen);
@@ -100,54 +100,52 @@ std::optional<NtpResult> syncNtpTime(const char* server, int timeoutMs) {
         return {};
     }
 
-    // 接收响应（使用高精度计时）
+    // 接收响应
     char response[48];
     struct sockaddr_in from;
     int fromLen = sizeof(from);
-    
-    LARGE_INTEGER liStart, liEnd, liFreq;
-    QueryPerformanceFrequency(&liFreq);
-    QueryPerformanceCounter(&liStart);
-    
+    DWORD startTime = GetTickCount();
+
     int recvLen = recvfrom(sock, response, sizeof(response), 0,
                           (struct sockaddr*)&from, &fromLen);
-    QueryPerformanceCounter(&liEnd);
-    
-    // 计算延迟（微秒转毫秒）
-    DWORD elapsedUs = (DWORD)((liEnd.QuadPart - liStart.QuadPart) * 1000000 / liFreq.QuadPart);
-    result.delay = (DWORD)(elapsedUs / 1000);  // 转换为毫秒
-    
+    DWORD endTime = GetTickCount();
+
     freeaddrinfo(addr);
     closesocket(sock);
-    
+
     if (recvLen == SOCKET_ERROR || recvLen < 48) {
         return {};
     }
-    
-    // 解析 NTP 响应（只使用 T3：服务器发送时间）
+
+    // 解析 NTP 响应
     NTPPacket* ntpResp = (NTPPacket*)response;
-    DWORD T3_seconds = ntohl(ntpResp->transTimestamp[0]);
-    DWORD T3_fraction = ntohl(ntpResp->transTimestamp[1]);
+    DWORD ntpSeconds = ntohl(ntpResp->transTimestamp[0]);
+    DWORD ntpFraction = ntohl(ntpResp->transTimestamp[1]);  // NTP 时间戳的小数部分
     
     // 转换 NTP 时间为 Unix 时间戳（带亚秒精度）
-    result.ntpTime = (double)(T3_seconds - 2208988800ULL) + (double)T3_fraction / (double)(1ULL << 32);
+    // NTP 小数部分是 32 位，表示秒的分数：fraction / 2^32
+    result.ntpTime = (double)(ntpSeconds - 2208988800ULL) + (double)ntpFraction / (double)(1ULL << 32);
     
     // 获取系统时区
     getSystemTimeZone(result.timezoneBias, result.timezoneName);
     
-    // 计算偏移量：NTP时间 - 本地时间（授时时刻）
+    // 计算时间偏移量（带亚秒精度）：NTP时间 - 本地时间
+    // 语义：正值表示NTP快（悬浮窗快），负值表示NTP慢（悬浮窗慢）
     auto now_chrono = std::chrono::system_clock::now();
     auto now_sec = std::chrono::duration_cast<std::chrono::seconds>(now_chrono.time_since_epoch()).count();
     auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_chrono.time_since_epoch()).count() % 1000;
     double now_exact = (double)now_sec + (double)now_ms / 1000.0;
-    result.offsetSec = result.ntpTime - now_exact;
+    result.offsetSec = result.ntpTime - now_exact;  // NTP时间 - 本地时间
     
-    // 记录性能计数器（用于后续悬浮窗时间计算）
+    // 记录性能计数器（用于后续计算精确时间）
     LARGE_INTEGER li;
     QueryPerformanceCounter(&li);
     result.steadyCount = li.QuadPart;
     
+    // 计算延迟
+    result.delay = endTime - startTime;
     result.status = NtpStatus::Success;
+
     return result;
 }
 
