@@ -973,18 +973,20 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             std::wstring offsetStr;
             wchar_t buf[64];
             
-            // 根据偏移量大小选择单位，并添加正负号
+            // 根据偏移量大小选择单位
             if (std::abs(offset) < 1.0) {
-                // 小于1秒，显示毫秒（保留1位小数）
-                swprintf(buf, 64, L"(%.1fms)", offset * 1000);
+                // 小于1秒，显示整数毫秒（0~999ms）
+                int ms = (int)(offset * 1000);
+                swprintf(buf, 64, L"(%+dms)", ms);
                 offsetStr = buf;
             } else if (std::abs(offset) < 3600.0) {
-                // 1秒到1小时之间，显示秒（保留1位小数）
-                swprintf(buf, 64, L"(%.1fs)", offset);
+                // 1秒到1小时之间，显示整数秒（offset 是整秒，无需小数）
+                int sec = (int)offset;
+                swprintf(buf, 64, L"(%+ds)", sec);
                 offsetStr = buf;
             } else {
                 // 大于1小时，显示小时（保留1位小数）
-                swprintf(buf, 64, L"(%.1fh)", offset / 3600);
+                swprintf(buf, 64, L"(%+.1fh)", offset / 3600);
                 offsetStr = buf;
             }
             
