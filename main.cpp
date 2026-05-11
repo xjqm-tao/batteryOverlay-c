@@ -102,6 +102,11 @@ namespace AppState {
     std::optional<std::wstring> szResultH;
 }
 
+// 根据显示模式返回定时器间隔（毫秒）
+static UINT getTimerInterval() {
+    return AppState::showTime.load() ? 100 : 300;
+}
+
 // ═════════════
 // 配置持久化
 static std::wstring configPath() {
@@ -731,7 +736,7 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         AppState::dragging.store(false);
         AppState::dragOffX.store(0);
         AppState::dragOffY.store(0);
-        SetTimer(hwnd, 1, 100, nullptr);
+        SetTimer(hwnd, 1, getTimerInterval(), nullptr);
         render(hwnd);
         return 0;
 
@@ -791,6 +796,8 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             bool newMode = !AppState::showTime.load();
             AppState::showTime.store(newMode);
             render(hwnd);
+            // 重新设置定时器（时间模式 100ms，正常模式 300ms）
+            SetTimer(hwnd, 1, getTimerInterval(), nullptr);
         }
 
         if (wasDrag) {
@@ -826,6 +833,8 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 // 切换显示模式
                 bool newMode = !AppState::showTime.load();
                 AppState::showTime.store(newMode);
+                // 重新设置定时器（时间模式 100ms，正常模式 300ms）
+                SetTimer(hwnd, 1, getTimerInterval(), nullptr);
             }
 
             RECT rc = {};
