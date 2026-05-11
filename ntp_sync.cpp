@@ -91,16 +91,6 @@ std::optional<NtpResult> syncNtpTime(const char* server, int timeoutMs) {
     NTPPacket packet = {};
     packet.leapVersionMode = (0 << 6) | (4 << 3) | 3; // LI=0, VN=4, Mode=3 (Client)
     
-    // 记录 T1：客户端发送时间（NTP 格式）
-    auto now_chrono = std::chrono::system_clock::now();
-    auto now_sec = std::chrono::duration_cast<std::chrono::seconds>(now_chrono.time_since_epoch()).count();
-    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_chrono.time_since_epoch()).count() % 1000;
-    // 转换为 NTP 时间戳（1900年1月1日为 epoch）
-    uint64_t t1_seconds = now_sec + 2208988800ULL;
-    uint64_t t1_fraction = (uint64_t)(now_ms * (1ULL << 32) / 1000.0);
-    packet.origTimestamp[0] = htonl((DWORD)(t1_seconds & 0xFFFFFFFF));
-    packet.origTimestamp[1] = htonl((DWORD)(t1_fraction & 0xFFFFFFFF));
-
     // 发送请求
     int sent = sendto(sock, (const char*)&packet, sizeof(packet), 0,
                addr->ai_addr, (int)addr->ai_addrlen);
