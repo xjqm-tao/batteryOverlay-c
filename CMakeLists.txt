@@ -9,6 +9,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
 add_executable(battery_overlay WIN32
     main.cpp
+    ntp_sync.cpp
     res/app.rc
 )
 

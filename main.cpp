@@ -25,6 +25,7 @@
 #include <optional>
 #include <algorithm>
 #include <cstdlib>
+#include "ntp_sync.h"
 
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "shlwapi.lib")
@@ -40,6 +41,7 @@ constexpr UINT ID_CUSTOM_SZ  = 1106;
 constexpr UINT ID_CUSTOM_FC  = 1206;
 constexpr UINT ID_CUSTOM_BG  = 1304;
 constexpr UINT ID_CUSTOM_AL  = 1404;
+constexpr UINT ID_NTP_STATUS = 1501;  // NTP 状态显示
 
 // 窗口类名
 constexpr wchar_t CLASS_NAME[]    = L"BatteryOverlayClass";
@@ -100,6 +102,12 @@ namespace AppState {
     std::mutex          szResultMutex;
     std::optional<std::wstring> szResultW;
     std::optional<std::wstring> szResultH;
+
+    // NTP 授时状态
+    std::atomic<bool>   ntpSynced{false};
+    std::atomic<DWORD>  ntpDelay{0};      // 延迟（毫秒）
+    std::atomic<time_t> ntpTime{0};       // NTP 时间
+    std::atomic<bool>   ntpFailed{false}; // 是否失败
 }
 
 // 根据显示模式返回定时器间隔（毫秒）
@@ -736,6 +744,10 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         AppState::dragging.store(false);
         AppState::dragOffX.store(0);
         AppState::dragOffY.store(0);
+
+        // 启动 NTP 授时
+        startNtpSyncAsync(hwnd);
+
         SetTimer(hwnd, 1, getTimerInterval(), nullptr);
         render(hwnd);
         return 0;
@@ -749,6 +761,33 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_TIMER:
         render(hwnd);
         return 0;
+
+    case WM_USER + 100: {  // NTP 授时完成消息
+        NtpResult result = getNtpResult();
+
+        if (result.status == NtpStatus::Success) {
+            // 授时成功
+            AppState::ntpSynced.store(true);
+            AppState::ntpFailed.store(false);
+            AppState::ntpTime.store(result.ntpTime);
+            AppState::ntpDelay.store(result.delay);
+
+            // 显示气泡提示"授时成功"（4秒）
+            showNtpBalloon(hwnd, L"授时成功",
+                           L"已成功从 NTP 服务器同步时间\n延迟：" +
+                           std::to_wstring(result.delay) + L"ms", 4000);
+        } else {
+            // 授时失败
+            AppState::ntpSynced.store(false);
+            AppState::ntpFailed.store(true);
+
+            // 显示气泡提示"授时失败"
+            showNtpBalloon(hwnd, L"授时失败",
+                           L"无法从 NTP 服务器获取时间\n将使用系统时间", 4000);
+        }
+
+        return 0;
+    }
 
     case WM_WINDOWPOSCHANGING:
         if (AppState::dragging.load()) {
@@ -892,6 +931,18 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // ── 右键菜单 ──
     case WM_RBUTTONUP: {
         HMENU hm = CreatePopupMenu();
+
+        // NTP 状态显示（禁用状态，仅用于显示）
+        if (AppState::ntpSynced.load()) {
+            std::wstring status = L"授时成功 | 延迟：" +
+                                 std::to_wstring(AppState::ntpDelay.load()) + L"ms";
+            AppendMenuW(hm, MF_STRING | MF_DISABLED, ID_NTP_STATUS, status.c_str());
+        } else if (AppState::ntpFailed.load()) {
+            AppendMenuW(hm, MF_STRING | MF_DISABLED, ID_NTP_STATUS, L"授时失败");
+        } else {
+            AppendMenuW(hm, MF_STRING | MF_DISABLED, ID_NTP_STATUS, L"授时中...");
+        }
+        AppendMenuW(hm, MF_SEPARATOR, 0, nullptr);
 
         // 置顶选项
         AppendMenuW(hm, MF_STRING, ID_TOPMOST, L"\u7F6E\u9876\u663E\u793A"); // 置顶显示
