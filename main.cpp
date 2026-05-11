@@ -968,15 +968,32 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         // NTP 状态显示（普通文本，非禁用）
         if (AppState::ntpSynced.load()) {
-            // 显示时间偏移量（带正负号）
+            // 智能显示时间偏移量（根据大小选择单位）
             double offset = AppState::ntpOffsetSec.load();
-            std::wstring status = L"本地延迟：";
-            status += std::to_wstring(AppState::ntpDelay.load()) + L"ms (";
-            if (offset >= 0) {
-                status += L'+';  // 正数前加+号
+            std::wstring offsetStr;
+            
+            // 根据偏移量大小选择单位，并添加正负号
+            if (std::abs(offset) < 1.0) {
+                // 小于1秒，显示毫秒
+                offsetStr = L"(";
+                if (offset >= 0) offsetStr += L"+";
+                offsetStr += std::to_wstring((int)(offset * 1000)) + L"ms)";
+            } else if (std::abs(offset) < 3600.0) {
+                // 1秒到1小时之间，显示秒
+                offsetStr = L"(";
+                if (offset >= 0) offsetStr += L"+";
+                offsetStr += std::to_wstring((int)offset) + L"s)";
+            } else {
+                // 大于1小时，显示小时
+                offsetStr = L"(";
+                if (offset >= 0) offsetStr += L"+";
+                offsetStr += std::to_wstring((int)(offset / 3600)) + L"h)";
             }
-            // 负数时 to_wstring 会自动加-号，无需额外处理
-            status += std::to_wstring((int)offset) + L"s)";
+            
+            // 组装显示文本：授时成功|相对系统延迟：XXms (±XXms/s/h)
+            std::wstring status = L"授时成功|相对系统延迟：";
+            status += std::to_wstring(AppState::ntpDelay.load()) + L"ms ";
+            status += offsetStr;
             AppendMenuW(hm, MF_STRING, ID_NTP_STATUS, status.c_str());
         } else if (AppState::ntpFailed.load()) {
             AppendMenuW(hm, MF_STRING, ID_NTP_STATUS, L"授时失败");
