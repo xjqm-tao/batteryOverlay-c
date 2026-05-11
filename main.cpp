@@ -333,15 +333,16 @@ static void render(HWND hwnd) {
             LARGE_INTEGER li;
             QueryPerformanceCounter(&li);
             
-            // 计算经过的毫秒数（高精度）
+            // 计算经过的毫秒数（保留小数精度）
             double elapsedMs = (double)(li.QuadPart - AppState::ntpSteadyCount.load()) * 1000.0 / (double)frequency;
             
-            // 计算精确的 NTP 时间（毫秒级）
-            LONGLONG currentTimeMs = AppState::ntpBaseTimeMs.load() + (LONGLONG)elapsedMs;
+            // 计算精确的 NTP 时间（毫秒级，保留小数）
+            double currentTimeMs = (double)AppState::ntpBaseTimeMs.load() + elapsedMs;
             
             // 转换为 time_t 和毫秒余数
-            time_t displayTime = (time_t)(currentTimeMs / 1000);
-            int ms_remainder = (int)(currentTimeMs % 1000);
+            time_t displayTime = (time_t)(currentTimeMs / 1000.0);
+            int ms_remainder = (int)(currentTimeMs - (double)displayTime * 1000.0);
+            if (ms_remainder < 0) ms_remainder += 1000;  // 处理负数
             
             tm timeStruct;
             localtime_s(&timeStruct, &displayTime);
