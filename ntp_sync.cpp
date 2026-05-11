@@ -2,6 +2,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <shellapi.h>
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -9,6 +10,7 @@
 #include "ntp_sync.h"
 
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "shell32.lib")
 
 // NTP 数据包结构（48 字节）
 #pragma pack(push, 1)
@@ -214,7 +216,7 @@ void showNtpBalloon(HWND hwnd, const std::wstring& title,
         nid.uID = 1;
         nid.uFlags = NIF_INFO | NIF_ICON | NIF_TIP;
         nid.hIcon = hIcon;
-        wcscpy_s(nid.szTip, L"Battery Overlay");
+        wcscpy_s(nid.szTip, _countof(nid.szTip), L"Battery Overlay");
         nid.dwInfoFlags = NIIF_INFO;
         nid.uTimeout = timeoutMs;
 
@@ -226,8 +228,8 @@ void showNtpBalloon(HWND hwnd, const std::wstring& title,
 
     // 更新气泡内容
     nid.uFlags = NIF_INFO;
-    wcscpy_s(nid.szInfoTitle, title.c_str());
-    wcscpy_s(nid.szInfo, text.c_str());
+    wcscpy_s(nid.szInfoTitle, _countof(nid.szInfoTitle), title.c_str());
+    wcscpy_s(nid.szInfo, _countof(nid.szInfo), text.c_str());
     nid.dwInfoFlags = NIIF_INFO;
     nid.uTimeout = timeoutMs;
 
