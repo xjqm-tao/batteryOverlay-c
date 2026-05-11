@@ -322,21 +322,27 @@ static void render(HWND hwnd) {
 
         // 如果 NTP 授时成功，使用 NTP 时间
         if (AppState::ntpSynced.load()) {
-            // 使用性能计数器计算精确的当前 NTP 时间
+            // 使用性能计数器计算精确的当前 NTP 时间（带亚秒精度）
             static LONGLONG frequency = 0;
             if (frequency == 0) {
                 LARGE_INTEGER li;
                 QueryPerformanceFrequency(&li);
                 frequency = li.QuadPart;
             }
-
+            
             LARGE_INTEGER li;
             QueryPerformanceCounter(&li);
-            // 计算经过的秒数（浮点数，保证精度）
-            double elapsedSec = (double)(li.QuadPart - AppState::ntpSteadyCount.load()) / (double)frequency;
-            // ntpBaseTimeMs 是毫秒级时间戳，需要转换为秒
-            time_t displayTime = (time_t)(AppState::ntpBaseTimeMs.load() / 1000) + (time_t)elapsedSec;
-
+            
+            // 计算经过的毫秒数（高精度）
+            double elapsedMs = (double)(li.QuadPart - AppState::ntpSteadyCount.load()) * 1000.0 / (double)frequency;
+            
+            // 计算精确的 NTP 时间（毫秒级）
+            LONGLONG currentTimeMs = AppState::ntpBaseTimeMs.load() + (LONGLONG)elapsedMs;
+            
+            // 转换为 time_t 和毫秒余数
+            time_t displayTime = (time_t)(currentTimeMs / 1000);
+            int ms_remainder = (int)(currentTimeMs % 1000);
+            
             tm timeStruct;
             localtime_s(&timeStruct, &displayTime);
             st.wYear = timeStruct.tm_year + 1900;
