@@ -115,10 +115,10 @@ namespace AppState {
 }
 
 // 根据显示模式返回定时器间隔（毫秒）
-// 时间模式：16ms（60 FPS，流畅显示）
+// 时间模式：90ms（约11 FPS，平衡流畅度和性能）
 // 电池模式：300ms（省电）
 static UINT getTimerInterval() {
-    return AppState::showTime.load() ? 16 : 300;
+    return AppState::showTime.load() ? 90 : 300;
 }
 
 // ═════════════
@@ -359,15 +359,15 @@ static void render(HWND hwnd) {
         }
 
         wchar_t timeBuf[32];
-        wchar_t secBuf[16];
+        wchar_t secBuf[8];
 
         // 第一行：小时:分钟（右边少1像素，避免边缘被切割）
         wsprintfW(timeBuf, L"%02d:%02d", st.wHour, st.wMinute);
         RECT r1 = { 0, 0, w - 1, h / 2 };
         DrawTextW(hdc, timeBuf, -1, &r1, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
 
-        // 第二行：秒.毫秒（显示毫秒级精度）
-        wsprintfW(secBuf, L"%02d.%03d", st.wSecond, ms_remainder);
+        // 第二行：秒（整数）
+        wsprintfW(secBuf, L"%02d", st.wSecond);
         RECT r2 = { 0, h / 2, w, h };
         DrawTextW(hdc, secBuf, -1, &r2, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
     } else {
