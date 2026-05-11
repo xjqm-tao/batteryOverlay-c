@@ -990,9 +990,8 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 offsetStr += std::to_wstring((int)(offset / 3600)) + L"h)";
             }
             
-            // 组装显示文本：授时成功|相对系统延迟：XXms (±XXms/s/h)
+            // 组装显示文本：授时成功|相对系统延迟：(±XXms/s/h)
             std::wstring status = L"授时成功|相对系统延迟：";
-            status += std::to_wstring(AppState::ntpDelay.load()) + L"ms ";
             status += offsetStr;
             AppendMenuW(hm, MF_STRING, ID_NTP_STATUS, status.c_str());
         } else if (AppState::ntpFailed.load()) {
