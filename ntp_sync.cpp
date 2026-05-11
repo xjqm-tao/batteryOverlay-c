@@ -208,7 +208,7 @@ void showNtpBalloon(HWND hwnd, const std::wstring& title,
     static bool trayAdded = false;
     static NOTIFYICONDATAW nid = {};
 
-    HICON hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCE(101));
+    HICON hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(101));
 
     if (!trayAdded) {
         nid.cbSize = sizeof(NOTIFYICONDATAW);
