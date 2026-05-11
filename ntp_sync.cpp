@@ -129,12 +129,13 @@ std::optional<NtpResult> syncNtpTime(const char* server, int timeoutMs) {
     // 获取系统时区
     getSystemTimeZone(result.timezoneBias, result.timezoneName);
     
-    // 计算时间偏移量（带亚秒精度）：本地时间 - NTP 时间
+    // 计算时间偏移量（带亚秒精度）：NTP时间 - 本地时间
+    // 语义：正值表示NTP快（悬浮窗快），负值表示NTP慢（悬浮窗慢）
     auto now_chrono = std::chrono::system_clock::now();
     auto now_sec = std::chrono::duration_cast<std::chrono::seconds>(now_chrono.time_since_epoch()).count();
     auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_chrono.time_since_epoch()).count() % 1000;
     double now_exact = (double)now_sec + (double)now_ms / 1000.0;
-    result.offsetSec = now_exact - result.ntpTime;
+    result.offsetSec = result.ntpTime - now_exact;  // 反转：NTP时间 - 本地时间
 
     // 记录性能计数器（用于后续计算精确时间）
     LARGE_INTEGER li;
