@@ -60,7 +60,7 @@ struct Config {
     static Config defaults() {
         return { -1, -1, 33, 33,
                  255, 255, 255,  // 默认字体颜色
-                 0,32,63, 204 }; // 默认背景色 + 透明度
+                 48,22,0, 204 }; // 默认背景色 + 透明度
     }
 
     COLORREF fontColorRef() const {
@@ -479,7 +479,7 @@ static void setAlpha(HWND hwnd, BYTE a) {
 
 static void showAbout(HWND hwnd) {
     int r = MessageBoxW(hwnd,
-        L"笔记本电脑电量百分比悬浮窗 v2.0.5.0 (C++ 重写版)\n"
+        L"笔记本电脑电量百分比悬浮窗 v2.0.6.0 (C++ 重写版)\n"
         L"作者：林涛-920250443\n\n"
         L"右键菜单可自定义：\n"
         L"  \xB7 窗口大小（手动输入长宽）\n"
