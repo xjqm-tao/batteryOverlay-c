@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <ctime>
+#include <chrono>
 #include "ntp_sync.h"
 
 #pragma comment(lib, "shell32.lib")
@@ -107,7 +108,9 @@ namespace AppState {
     // NTP 授时状态
     std::atomic<bool>   ntpSynced{false};
     std::atomic<DWORD>  ntpDelay{0};      // 延迟（毫秒）
-    std::atomic<time_t> ntpTimeOffset{0};  // NTP 时间与系统时间的偏移量
+    std::atomic<time_t> ntpBaseTime{0};   // 授时成功时的 NTP 时间（秒）
+    std::atomic<LONGLONG> ntpSteadyCount{0}; // 授时时的性能计数器值
+    std::atomic<double> ntpOffsetSec{0.0};    // 时间偏移量（秒）
     std::atomic<bool>   ntpFailed{false}; // 是否失败
 }
 
@@ -319,9 +322,19 @@ static void render(HWND hwnd) {
 
         // 如果 NTP 授时成功，使用 NTP 时间
         if (AppState::ntpSynced.load()) {
-            // 应用 NTP 时间偏移量到当前系统时间
-            time_t now = time(nullptr);
-            time_t displayTime = now + AppState::ntpTimeOffset.load();
+            // 使用性能计数器计算精确的当前 NTP 时间
+            static LONGLONG frequency = 0;
+            if (frequency == 0) {
+                LARGE_INTEGER li;
+                QueryPerformanceFrequency(&li);
+                frequency = li.QuadPart;
+            }
+
+            LARGE_INTEGER li;
+            QueryPerformanceCounter(&li);
+            LONGLONG elapsedSec = (li.QuadPart - AppState::ntpSteadyCount.load()) / frequency;
+            time_t displayTime = AppState::ntpBaseTime.load() + (time_t)elapsedSec;
+
             tm timeStruct;
             localtime_s(&timeStruct, &displayTime);
             st.wYear = timeStruct.tm_year + 1900;
@@ -784,14 +797,13 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         NtpResult result = getNtpResult();
 
         if (result.status == NtpStatus::Success) {
-            // 授时成功：计算 NTP 时间与系统时间的偏移量
-            time_t now = time(nullptr);
-            time_t offset = result.ntpTime - now;
-
+            // 授时成功：存储 NTP 时间和性能计数器值
             AppState::ntpSynced.store(true);
             AppState::ntpFailed.store(false);
-            AppState::ntpTimeOffset.store(offset);
             AppState::ntpDelay.store(result.delay);
+            AppState::ntpBaseTime.store(result.ntpTime);
+            AppState::ntpSteadyCount.store(result.steadyCount);
+            AppState::ntpOffsetSec.store(result.offsetSec);
 
             // 显示气泡提示"授时成功"（4秒）
             showNtpBalloon(hwnd, L"授时成功",
@@ -953,15 +965,20 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_RBUTTONUP: {
         HMENU hm = CreatePopupMenu();
 
-        // NTP 状态显示（禁用状态，仅用于显示）
+        // NTP 状态显示（普通文本，非禁用）
         if (AppState::ntpSynced.load()) {
-            std::wstring status = L"授时成功 | 延迟：" +
-                                 std::to_wstring(AppState::ntpDelay.load()) + L"ms";
-            AppendMenuW(hm, MF_STRING | MF_DISABLED, ID_NTP_STATUS, status.c_str());
+            // 显示时间偏移量（带正负号）
+            double offset = AppState::ntpOffsetSec.load();
+            wchar_t sign = (offset >= 0) ? L'+' : L'';
+            std::wstring status = L"本地延迟：";
+            status += std::to_wstring(AppState::ntpDelay.load()) + L"ms (";
+            status += sign;
+            status += std::to_wstring((int)offset) + L"s)";
+            AppendMenuW(hm, MF_STRING, ID_NTP_STATUS, status.c_str());
         } else if (AppState::ntpFailed.load()) {
-            AppendMenuW(hm, MF_STRING | MF_DISABLED, ID_NTP_STATUS, L"授时失败");
+            AppendMenuW(hm, MF_STRING, ID_NTP_STATUS, L"授时失败");
         } else {
-            AppendMenuW(hm, MF_STRING | MF_DISABLED, ID_NTP_STATUS, L"授时中...");
+            AppendMenuW(hm, MF_STRING, ID_NTP_STATUS, L"授时中...");
         }
         AppendMenuW(hm, MF_SEPARATOR, 0, nullptr);
 

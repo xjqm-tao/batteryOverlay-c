@@ -18,9 +18,11 @@ enum class NtpStatus {
 struct NtpResult {
     NtpStatus status = NtpStatus::Idle;
     time_t ntpTime = 0;           // NTP 时间（秒时间戳）
-    DWORD delay = 0;              // 延迟（毫秒）
+    DWORD delay = 0;              // NTP 请求延迟（毫秒）
     int timezoneBias = 0;        // 时区偏移（分钟）
     std::wstring timezoneName;    // 时区名称
+    LONGLONG steadyCount = 0;    // 授时成功时的性能计数器值
+    double offsetSec = 0.0;      // 时间偏移量（秒，正=本地快，负=本地慢）
 };
 
 // 初始化 Winsock

@@ -8,6 +8,7 @@
 #include <atomic>
 #include <mutex>
 #include <optional>
+#include <chrono>
 #include "ntp_sync.h"
 
 #pragma comment(lib, "ws2_32.lib")
@@ -123,9 +124,17 @@ std::optional<NtpResult> syncNtpTime(const char* server, int timeoutMs) {
     // 获取系统时区
     getSystemTimeZone(result.timezoneBias, result.timezoneName);
 
+    // 计算时间偏移量（秒）：本地时间 - NTP 时间
+    time_t now = time(nullptr);
+    result.offsetSec = difftime(now, result.ntpTime);
+
+    // 记录性能计数器（用于后续计算精确时间）
+    LARGE_INTEGER li;
+    QueryPerformanceCounter(&li);
+    result.steadyCount = li.QuadPart;
+
     // 计算延迟
     result.delay = endTime - startTime;
-    result.ntpTime = ntpToUnix(ntpSeconds);
     result.status = NtpStatus::Success;
 
     return result;
