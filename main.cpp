@@ -970,10 +970,12 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (AppState::ntpSynced.load()) {
             // 显示时间偏移量（带正负号）
             double offset = AppState::ntpOffsetSec.load();
-            wchar_t sign = (offset >= 0) ? L'+' : L'';
             std::wstring status = L"本地延迟：";
             status += std::to_wstring(AppState::ntpDelay.load()) + L"ms (";
-            status += sign;
+            if (offset >= 0) {
+                status += L'+';  // 正数前加+号
+            }
+            // 负数时 to_wstring 会自动加-号，无需额外处理
             status += std::to_wstring((int)offset) + L"s)";
             AppendMenuW(hm, MF_STRING, ID_NTP_STATUS, status.c_str());
         } else if (AppState::ntpFailed.load()) {
