@@ -1,4 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
+#define _WIN32_WINNT 0x0500  // Windows 2000+ for Shell_NotifyIcon
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
